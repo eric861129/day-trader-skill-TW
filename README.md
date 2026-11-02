@@ -2,7 +2,7 @@
 
 11 個台股當沖 Claude skill：掃描上千檔線圖、追蹤新聞和重大訊息、抓準每一次進場和出場，並在動用真錢之前先重播每一種結果。
 
-免費、MIT 授權、不用註冊、不用 API key。工具是純 Python，只讀免費的公開資料：Yahoo 股市線圖、
+免費、MIT 授權、不用註冊、不用 API key（只有選用的永豐金下單串接要用你自己的金鑰）。工具是純 Python，只讀免費的公開資料：Yahoo 股市線圖、
 證交所 MIS 報價、證交所與櫃買中心的 OpenAPI、公開資訊觀測站和 Google 新聞。
 
 一個 skill 掃上千張線圖找型態，一個追蹤你關注的每一檔的新聞和重大訊息，一個一根一根 K 棒盯著告訴你
@@ -10,7 +10,8 @@
 5 分 K 把當天剩下的盤重播 10,000 次，再加上過去每一次同樣型態出現的真實結果，告訴你老實的機率。
 
 而且你沒說 yes，什麼都不會成交。這套 skill 不會自己下單：委託單通過風險檢查、你在對話裡針對這一張回覆
-yes 之後，由你自己在券商 App 送出。預設是模擬交易。
+yes 之後，由你自己在券商 App 送出；選用永豐金 Shioaji 串接時，是你在 Claude Code 的權限確認按允許才送出。
+預設是模擬交易。
 
 這是 [Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill)（美股版，MIT）的台股改寫：
 台北時間、證交所休市日（含颱風假）、升降單位、漲跌停、整股和零股、手續費和證交稅、處置股、現股當沖資格，
@@ -44,7 +45,7 @@ cp -r day-trader-skill-TW/trader-* ~/.claude/skills/
 只想在某個專案裡用，就把同樣的資料夾複製到那個專案的 `.claude/skills/`。完全沒有 Claude Code？把任何一個
 `SKILL.md` 貼在對話最上面，它就會照著做，只是少了 Python 工具，方法還是一樣。
 
-工具需要 Python 3.8 以上，不用 pip 安裝任何東西。Python 3.13 起預設的嚴格憑證檢查會擋掉證交所、櫃買中心和
+工具需要 Python 3.8 以上，不用 pip 安裝任何東西（只有選用的永豐金串接要 `pip install shioaji`）。Python 3.13 起預設的嚴格憑證檢查會擋掉證交所、櫃買中心和
 公開資訊觀測站的網站，工具已經處理好（憑證鏈和網域名稱照樣驗證）。
 
 ## 十一個 skill
@@ -58,7 +59,7 @@ cp -r day-trader-skill-TW/trader-* ~/.claude/skills/
 | `/trader-timemachine` | 時光機 | 動用真錢之前重播一筆交易的每一種結果：模擬 10,000 次盤，再加上過去每一次同樣型態的真實結果。 |
 | `/trader-risk` | 風險管理 | 用你的規則檢查每一張單，超過就擋：單筆和單日虧損（含成本）、當沖資格與標的、處置股、違約交割風險。 |
 | `/trader-budget` | 部位管理 | 依你的預算和單筆最大虧損算出要買幾張，手續費和證交稅都算進去。 |
-| `/trader-broker` | 委託單 | 把通過的單變成看得懂的委託單，你說 yes、自己在券商 App 送出；預設模擬交易。 |
+| `/trader-broker` | 委託單 | 把通過的單變成看得懂的委託單，你說 yes、自己在券商 App 送出，或選用永豐金 Shioaji API 送出；預設模擬交易。 |
 | `/trader-alerts` | 到價提醒 | 價格碰到停損、停利、漲跌停，或開盤、13:20 出清的時間到了就提醒你。 |
 | `/trader-analyst` | 財報分析 | 讀公開資訊觀測站的月營收、季報和法說會，整理出變化。 |
 | `/trader-institutional` | 三大法人 | 追蹤外資、投信、自營商的買賣超，找出投信連買、外資連賣。 |
@@ -116,6 +117,7 @@ python3 trader-timemachine/timemachine.py run --write      # 10,000 次重播加
 python3 trader-budget/size.py --write                      # -> trader/orders.json
 python3 trader-risk/check.py                               # 每一張 PASS / BLOCK
 python3 trader-broker/ticket.py show                       # 委託單，READY 或不是
+python3 trader-broker/ticket.py send --index 1             # 選用：送到永豐金（預設永豐的模擬環境）
 python3 trader-alerts/alerts.py add --from-plan            # 停損、停利、13:20 出清
 python3 trader-alerts/alerts.py check                      # 碰到的響一次
 python3 trader-analyst/facts.py 2303                       # 月營收、季報、法說會
@@ -137,10 +139,13 @@ python3 -m unittest discover -s tests -v
 你可能賠錢。自己做決定，需要建議就去找有執照的專業人士。
 
 **你沒說 yes，什麼都不會成交。** 只有 `/trader-broker` 會產生委託單，而且要三件事都成立：`/trader-risk` 今天
-通過了這一張、你在對話中針對這一張明確回覆 yes、你自己在券商 App 送出。這套 skill 不連券商，不會自己下單；
-串接券商 API 是之後的事。不做融資、融券、先賣後買、選擇權或期貨，除非你在設定檔打開並且確認。
+通過了這一張、你在對話中針對這一張明確回覆 yes、你自己在券商 App 送出。預設不連任何券商。選用的永豐金 Shioaji
+串接（`"broker": "shioaji"`）讓 `ticket.py send` 送出同一張已同意的委託，這時最後一下是你在 Claude Code 的權限
+確認按允許；`send` 和 `cancel` 永遠不要加進允許清單。其他券商目前沒有串接。不做融資、融券、先賣後買、選擇權或期貨，除非你在設定檔打開並且確認。
 
-**先模擬。** `config.example.json` 預設 `"paper": true`。券商帳號、密碼和憑證不會出現在對話裡，也不會寫進任何檔案。
+**先模擬。** `config.example.json` 預設 `"paper": true`，永豐金串接也預設送到永豐的模擬環境；真錢要同時設
+`"paper": false`、指令加 `--live`。券商帳號、密碼和憑證不會出現在對話裡，也不會寫進任何檔案：永豐金的金鑰和
+憑證只從環境變數讀，`.gitignore` 也排除了 `.env` 和 `*.pfx`。
 
 **現股當沖有規則。** 要先跟券商簽好當沖契約（設定檔的 `day_trade_enabled` 預設是關的），而且只能做當天
 證交所和櫃買中心公布的當沖標的；處置股不行。零股不能當沖，今天買的零股最快下一個交易日才能賣。當沖沒沖掉的
@@ -172,7 +177,7 @@ trader-exit/           SKILL.md, exit.py
 trader-timemachine/    SKILL.md, timemachine.py
 trader-risk/           SKILL.md, check.py
 trader-budget/         SKILL.md, size.py, config.example.json, targets.example.json
-trader-broker/         SKILL.md, ticket.py
+trader-broker/         SKILL.md, ticket.py, sinopac.py（選用的永豐金串接）
 trader-alerts/         SKILL.md, alerts.py, alerts.example.json
 trader-analyst/        SKILL.md, facts.py, metrics.example.json
 trader-institutional/  SKILL.md, inst.py
