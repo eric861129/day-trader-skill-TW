@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Order tickets and the decision log for trader-broker (Taiwan). Standard library only.
 
-This tool never talks to a broker and never places anything. There is no
-broker API in this pack yet (planned for later): the user places every order
-by hand in their own broker app. The tool does its work around the moments
-that matter:
+With "broker": "manual" (the default) this tool never talks to a broker: the
+user places every order by hand in their own broker app. With "broker":
+"shioaji" it can also send an approved ticket to 永豐金 through the Shioaji API
+(sinopac.py; the simulation environment while "paper" is true). The tool does
+its work around the moments that matter:
 
   show      renders each proposed ticket in plain Chinese: exactly what to fill
             in a Taiwan broker app (上市/上櫃, code and name, 買進/賣出, 整股 or
@@ -25,6 +26,19 @@ that matter:
             still goes through trader-risk and the user's yes.
   log       prints today's decisions.
 
+With "broker": "shioaji" (pip install shioaji; keys in environment variables):
+  send      sends ONE approved ticket through Shioaji: only when trader-risk
+            passed it today, the user's yes is recorded and fresh (10 minutes),
+            and it was never sent before. Paper = Shioaji's simulation; a live
+            account also needs --live on this command. Claude Code asks the user
+            before it runs (keep ticket.py send off the allow list).
+  sync      reads today's orders and fills back from Shioaji into broker.json
+            and portfolio.json (each fill once).
+  cancel    asks Shioaji to cancel a sent order that is still open (needs a yes).
+  positions prints the holdings Shioaji reports, next to portfolio.json.
+  probe     simulation only: logs in, lists the accounts and looks up one code.
+            Places nothing.
+
     python3 ticket.py show                    # every ticket, READY or not
     python3 ticket.py show --index 1 --json   # one ticket as JSON
     python3 ticket.py approve --index 1 --reply "是"
@@ -32,6 +46,8 @@ that matter:
     python3 ticket.py fill --symbol 2303 --side buy --qty 1000 --price 110.0
     python3 ticket.py flatten --symbol 2303
     python3 ticket.py log
+    python3 ticket.py send --index 1          # "broker": "shioaji" only
+    python3 ticket.py sync
 
 Everything is written to trader/state/broker.json (append only). Dates are
 Taipei dates; --now "2026-11-02 09:20" pins the clock (Taipei time).
@@ -56,7 +72,9 @@ TIF_WORDS = {"ROD": "當日有效，收盤前沒成交的部分一直掛著",
              "IOC": "立即成交，沒成交的部分取消",
              "FOK": "全部成交，否則全部取消"}
 STATUS_WORDS = {"approved": "已同意", "declined": "不要", "placed": "已送出", "skipped": "沒送出",
-                "failed": "失敗", "filled": "成交"}
+                "failed": "失敗", "filled": "成交", "cancelled": "已刪單"}
+SEND_WITHIN_MINUTES = 10        # a yes older than this is stale: ask again before sending
+BROKERS = ("manual", "shioaji")
 
 YES_EN = re.compile(r"^(yes|y)(?![a-z'])")
 YES_ZH = ("是", "確認", "確定")
@@ -382,8 +400,25 @@ def risk_verdict(risk, fp, today):
     return None, "這一張不在最近一次風險檢查裡（內容改過或是新的）：再執行一次 check.py"
 
 
-def status_of(order, risk, state, today):
-    """(ready, label, risk_result)"""
+def parse_at(text):
+    """"2026-11-02T09:21:00+08:00" -> naive UTC, or None."""
+    try:
+        dt = datetime.datetime.fromisoformat(str(text))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        return tw.taipei_to_utc(dt)
+    return (dt - dt.utcoffset()).replace(tzinfo=None)
+
+
+def yes_expired(rec, now):
+    """An API yes is good for SEND_WITHIN_MINUTES: after that the price may have moved."""
+    at = parse_at(rec.get("at"))
+    return at is None or (now - at).total_seconds() > SEND_WITHIN_MINUTES * 60
+
+
+def status_of(order, risk, state, today, now=None, api=False):
+    """(ready, label, risk_result). api: the Shioaji flow, where a yes expires before it is sent."""
     fp = fingerprint(order)
     rv, why = risk_verdict(risk, fp, today)
     if rv is None:
@@ -394,6 +429,11 @@ def status_of(order, risk, state, today):
     if rec:
         st = rec.get("status")
         at = str(rec.get("at", ""))[11:16]
+        if st == "approved" and api:
+            if now is not None and yes_expired(rec, now):
+                return True, ("READY：你 %s 的 yes 已經超過 %d 分鐘，過期了；要送出請再回覆一次 yes"
+                              % (at, SEND_WITHIN_MINUTES)), rv
+            return False, "APPROVED：你在 %s 回覆了 yes，等 ticket.py send 送到永豐金" % at, rv
         if st == "approved":
             return False, "APPROVED：你在 %s 回覆了 yes，等你自己在券商 App 送出，再用 result 記錄" % at, rv
         return False, "DONE：%s（%s）" % (STATUS_WORDS.get(st, st), at), rv
@@ -407,18 +447,31 @@ def kind_of(order, rv):
     return "entry" if str(order.get("side", "")).lower() == "buy" else "exit"
 
 
+def broker_of(cfg):
+    b = str(cfg.get("broker") or "manual").strip().lower()
+    if b not in BROKERS:
+        raise TicketError("設定檔的 broker 是 %r：只能是 manual（自己在券商 App 送出）或 shioaji（永豐金 API）" % b)
+    return b
+
+
 def account_line(cfg):
-    if cfg.get("paper", True):
+    paper = cfg.get("paper", True)
+    if broker_of(cfg) == "shioaji":
+        if paper:
+            return "永豐金 Shioaji 模擬環境：回覆 yes 之後由 ticket.py send 送到永豐的模擬環境，不是真的錢。"
+        return "永豐金 Shioaji 正式環境（\"paper\": false）：回覆 yes 之後由 ticket.py send --live 送出，這是真的錢。"
+    if paper:
         return "模擬交易，不要在真的券商送出，回覆 yes 後用 fill 記錄假設成交。"
     return "真錢帳戶（\"paper\": false）：這一張送出去就是真的錢。"
 
 
 # ---------------------------------------------------------------- rendering
 
-def render(order, idx, total, cfg, risk, state, today):
+def render(order, idx, total, cfg, risk, state, today, now=None):
     fees = tw.fee_settings(cfg)
     on = _date(today)
-    ready, label, rv = status_of(order, risk, state, today)
+    api = broker_of(cfg) == "shioaji"
+    ready, label, rv = status_of(order, risk, state, today, now, api)
     paper = cfg.get("paper", True)
     head = "委託 %d／%d，%s" % (idx, total, "模擬交易" if paper else "真錢帳戶")
     if cfg.get("broker_name"):
@@ -440,7 +493,11 @@ def render(order, idx, total, cfg, risk, state, today):
     lines.append("  " + label)
     for w in (rv or {}).get("warnings", []):
         lines.append("  注意：" + w)
-    lines.append("  在券商 App 依序填：")
+    if api:
+        lines.append("  送到永豐金的委託（%s）：" % ("ticket.py send --live" if not cfg.get("paper", True)
+                                              else "ticket.py send，模擬環境"))
+    else:
+        lines.append("  在券商 App 依序填：")
     for k, v in app_fields(order):
         lines.append("    %s：%s" % (k, v))
     lines.append("  " + account_line(cfg))
@@ -449,13 +506,13 @@ def render(order, idx, total, cfg, risk, state, today):
     return "\n".join(lines), ready
 
 
-def ticket_json(order, idx, cfg, risk, state, today):
+def ticket_json(order, idx, cfg, risk, state, today, now=None):
     fees = tw.fee_settings(cfg)
     on = _date(today)
-    ready, label, rv = status_of(order, risk, state, today)
+    ready, label, rv = status_of(order, risk, state, today, now, broker_of(cfg) == "shioaji")
     loss = max_loss(order, fees, on)
     return {"index": idx, "ready": ready, "status": label, "plain": plain(order, fees, on),
-            "fingerprint": fingerprint(order), "paper": bool(cfg.get("paper", True)),
+            "fingerprint": fingerprint(order), "paper": bool(cfg.get("paper", True)), "broker": broker_of(cfg),
             "ticket": {k: order[k] for k in tw.TICKET_FIELDS if order.get(k) is not None},
             "app_fields": [list(r) for r in app_fields(order)], "conditions": condition_lines(order),
             "why": order.get("why", ""), "max_loss": loss["total"] if loss else None,
@@ -557,15 +614,16 @@ def apply_fill(portfolio_path, cfg, symbol, side, qty, price, date, trade=None, 
     return pf, detail
 
 
-def log_fill(state_path, now, today, symbol, side, qty, price, lot=None, trade=None):
+def log_fill(state_path, now, today, symbol, side, qty, price, lot=None, trade=None, extra=None):
     """A fill in the log, so trader-risk can see what happened today."""
     state = load_state(state_path)
     q = int(qty)
-    state.setdefault("orders", []).append({
-        "at": taipei_iso(now), "date": today, "status": "filled", "symbol": str(symbol).upper(), "side": side,
-        "qty": q, "price": float(price), "lot": lot or ("board" if q % tw.LOT == 0 else "odd"), "trade": trade,
-        "plain": "%s %s %s，成交價 %s" % (SIDE_WORDS.get(side, side), str(symbol).upper(), tw.fmt_shares(q),
-                                      tw.fmt_price(price, str(symbol).upper()))})
+    rec = {"at": taipei_iso(now), "date": today, "status": "filled", "symbol": str(symbol).upper(), "side": side,
+           "qty": q, "price": float(price), "lot": lot or ("board" if q % tw.LOT == 0 else "odd"), "trade": trade,
+           "plain": "%s %s %s，成交價 %s" % (SIDE_WORDS.get(side, side), str(symbol).upper(), tw.fmt_shares(q),
+                                         tw.fmt_price(price, str(symbol).upper()))}
+    rec.update(extra or {})
+    state.setdefault("orders", []).append(rec)
     write_json(state_path, state)
 
 
@@ -606,12 +664,12 @@ def cmd_show(a):
     orders, cfg, risk, state, today, now = _load(a)
     picks = [(a.index, _pick(orders, a.index))] if a.index else list(enumerate(orders, 1))
     if a.json:
-        out = [ticket_json(o, i, cfg, risk, state, today) for i, o in picks]
+        out = [ticket_json(o, i, cfg, risk, state, today, now) for i, o in picks]
         print(json.dumps(out[0] if a.index else out, ensure_ascii=False, indent=2))
         return 0 if any(t["ready"] for t in out) else 1
     blocks, any_ready = [], False
     for i, o in picks:
-        text, ready = render(o, i, len(orders), cfg, risk, state, today)
+        text, ready = render(o, i, len(orders), cfg, risk, state, today, now)
         blocks.append(text)
         any_ready = any_ready or ready
     print("\n\n".join(blocks))
@@ -629,7 +687,7 @@ def _value(order):
 def cmd_approve(a):
     orders, cfg, risk, state, today, now = _load(a)
     order = _pick(orders, a.index)
-    ready, label, rv = status_of(order, risk, state, today)
+    ready, label, rv = status_of(order, risk, state, today, now, broker_of(cfg) == "shioaji")
     if not ready:
         raise TicketError("第 %d 張還不能同意：%s" % (a.index, label))
     fees, on = tw.fee_settings(cfg), _date(today)
@@ -649,6 +707,13 @@ def cmd_approve(a):
     write_json(a.state, state)
     print("已記錄你對第 %d 張的 yes：%s。" % (a.index, plain(order, fees, on)))
     print("還沒有任何東西送出。")
+    if broker_of(cfg) == "shioaji":
+        live = not cfg.get("paper", True)
+        print("下一步：ticket.py send --index %d%s，%d 分鐘內有效，送到永豐金%s。"
+              % (a.index, " --live" if live else "", SEND_WITHIN_MINUTES, "正式環境（真的錢）" if live else "模擬環境"))
+        print("Claude 執行 send 時，Claude Code 會先問你允不允許：你按允許才會送出。")
+        print("送出後用 ticket.py sync 把成交記回來。")
+        return 0
     if cfg.get("paper", True):
         print("模擬交易：不要在真的券商送出。假設它成交，記錄成交價：")
         print("  ticket.py result --index %d --status placed --filled-qty %s --filled-price 成交價"
@@ -837,6 +902,279 @@ def cmd_log(a):
     return 0
 
 
+# ---------------------------------------------------------------- 永豐金 Shioaji (optional)
+
+SDK = None      # the shioaji module; None = import it. Tests put a fake here.
+SJ_STATUS = {"PendingSubmit": "傳送中", "PreSubmitted": "預約單", "Submitted": "已委託", "Failed": "失敗",
+             "Cancelled": "已刪單", "Filled": "完全成交", "PartFilled": "部分成交"}
+
+
+def _sinopac():
+    """The Shioaji connection (sinopac.py), imported only when a Shioaji command runs."""
+    import sinopac
+    return sinopac
+
+
+def _session(live):
+    sp = _sinopac()
+    try:
+        return sp.Session(live, os.environ, sdk=SDK)
+    except sp.BrokerError as e:
+        raise TicketError(str(e))
+
+
+def _with_broker(live, fn):
+    sp = _sinopac()
+    try:
+        with _session(live) as s:
+            return fn(s)
+    except sp.BrokerError as e:
+        raise TicketError(str(e))
+
+
+def _need_shioaji(cfg):
+    if broker_of(cfg) != "shioaji":
+        raise TicketError("設定檔的 broker 不是 shioaji：委託請你自己在券商 App 送出。要用永豐金 API，"
+                          "在 trader/config.json 設 \"broker\": \"shioaji\"（設定方法見 SKILL.md）")
+
+
+def _plain_yes(reply):
+    """A yes for a cancel: starts with yes / 是 / 確認 / 確定, no doubt in it."""
+    s = re.sub(r"^[\s\"'「『(（]+", "", (reply or "").strip().lower())
+    rest = next((s[len(w):] for w in YES_ZH if s.startswith(w)), None)
+    if rest is None:
+        m = YES_EN.match(s)
+        rest = s[m.end():] if m else None
+    if rest is None or "?" in s or "？" in s:
+        return False
+    return not ((DOUBT_EN - {"cancel"}) & set(re.findall(r"[a-z']+", rest))
+                or any(w in rest for w in DOUBT_ZH if w != "取消"))
+
+
+def _carry(rec, new):
+    for k in ("lot", "qty", "trade", "kind", "value_twd", "max_loss", "stop"):
+        if rec.get(k) is not None:
+            new[k] = rec[k]
+    return new
+
+
+def cmd_send(a):
+    orders, cfg, risk, state, today, now = _load(a)
+    _need_shioaji(cfg)
+    order = _pick(orders, a.index)
+    fp = fingerprint(order)
+    rv, why = risk_verdict(risk, fp, today)
+    if rv is None:
+        raise TicketError("不能送出第 %d 張：%s" % (a.index, why))
+    if rv.get("verdict") != "PASS":
+        raise TicketError("不能送出第 %d 張：trader-risk 擋下了（%s）" % (a.index, "；".join(rv.get("reasons", []))))
+    rec = latest(state, fp, today)
+    st = (rec or {}).get("status")
+    if st in ("placed", "cancelled"):
+        raise TicketError("第 %d 張今天已經送出過了（委託書號 %s）：一張只送一次，不重送"
+                          % (a.index, rec.get("order_no") or "不明"))
+    if st == "failed":
+        raise TicketError("第 %d 張上次送出失敗：不要重送；要重來就重新規劃、重新檢查、重新回覆 yes" % a.index)
+    if st != "approved":
+        raise TicketError("第 %d 張還沒有你的 yes：先把委託單給使用者看，記錄他針對這一張的明確同意（approve）" % a.index)
+    if yes_expired(rec, now):
+        raise TicketError("你對第 %d 張的 yes 是 %s 記錄的，超過 %d 分鐘：價格可能變了。先重新檢查（check.py），"
+                          "再請使用者回覆一次 yes" % (a.index, str(rec.get("at", ""))[11:16], SEND_WITHIN_MINUTES))
+    live = not cfg.get("paper", True)
+    if live and not a.live:
+        raise TicketError("設定檔是真錢帳戶（\"paper\": false）：要送出真的委託，指令要加 --live，"
+                          "而且使用者要在對話中確認這是真的錢")
+    if a.live and not live:
+        raise TicketError("設定檔是模擬交易（\"paper\": true），不能加 --live")
+    if not live and order.get("lot") == "odd":
+        raise TicketError("永豐的模擬環境不收零股：這一張不要用 send。假設成交的話，用 "
+                          "ticket.py result --index %d --status placed --filled-qty 股數 --filled-price 價格 記錄" % a.index)
+    local = tw.to_taipei(now)
+    closed = tw.load_calendar(os.path.dirname(a.config) or "trader", cfg).closed(local.date())
+    if closed:
+        raise TicketError("今天（%s）休市：%s。這個 skill 不送預約單" % (tw.day_label(local.date()), closed))
+    if not tw.PRE_OPEN <= local.time() < tw.CLOSE:
+        raise TicketError("現在 %s 不在交易時段（08:30 到 13:30）：這個 skill 不送預約單" % tw.hm(local.time()))
+
+    fees, on = tw.fee_settings(cfg), _date(today)
+    base = {"at": taipei_iso(now), "date": today, "index": a.index, "fingerprint": fp, "symbol": _code(order),
+            "name": order.get("name", ""), "side": order.get("side"), "plain": plain(order, fees, on),
+            "paper": not live, "broker": "shioaji", "simulation": not live}
+    _carry(rec, base)
+    sp = _sinopac()
+    session = _session(live)            # the package and the keys: nothing has been sent yet
+    try:
+        with session as s:
+            info = s.place(order)
+    except sp.BrokerError as e:
+        if not e.maybe_sent:            # login, certificate, contract: nothing reached the exchange
+            raise TicketError("沒有送出：%s" % e)
+        # counted as placed until sync proves otherwise: trader-risk must not hand out the same room twice
+        base.update({"status": "placed", "uncertain": True, "note": str(e)})
+        state.setdefault("orders", []).append(base)
+        write_json(a.state, state)
+        print("送出時出錯：%s" % e)
+        print("永豐可能已經收到這張委託，所以先記成「已送出（結果不明）」：執行 ticket.py sync 確認，不要重送。")
+        return 1
+    failed = info["status"] == "Failed"
+    base.update({"status": "failed" if failed else "placed", "order_no": info["ordno"],
+                 "broker_trade_id": info["id"], "broker_status": info["status"], "broker_msg": info["msg"]})
+    state.setdefault("orders", []).append(base)
+    write_json(a.state, state)
+    where = "永豐金模擬環境" if not live else "永豐金正式環境（真的錢）"
+    if failed:
+        print("永豐回覆失敗：%s（%s）。第 %d 張沒有送出。" % (info["msg"] or "沒有說明", where, a.index))
+        return 1
+    print("已送到%s：第 %d 張，%s。" % (where, a.index, plain(order, fees, on)))
+    print("委託書號 %s，狀態 %s%s。" % (info["ordno"] or "（還沒給）", SJ_STATUS.get(info["status"], info["status"]),
+                                  ("，%s" % info["msg"]) if info["msg"] else ""))
+    print("下一步：ticket.py sync 把成交記回來。")
+    if order.get("side") == "buy" and order.get("stop") is not None:
+        print("停損和停利沒有一起送出：成交後在永豐的 App 設條件單，或用 trader-alerts 響鈴。")
+    return 0
+
+
+def cmd_sync(a):
+    cfg = read_json(a.config, "設定檔", required=False) or {}
+    _need_shioaji(cfg)
+    now, today = _clock(a)
+    live = not cfg.get("paper", True)
+    state = load_state(a.state)
+    sent = [r for r in state.get("orders", []) if rec_day(r) == today and r.get("broker") == "shioaji"
+            and r.get("status") == "placed"]
+    if not sent:
+        print("今天沒有用 ticket.py send 送出的委託。")
+        return 0
+    trades = _with_broker(live, lambda s: s.trades())
+    linked = {r.get("order_no") for r in sent if r.get("order_no")}
+    for r in sent:
+        if r.get("order_no") or r.get("broker_trade_id"):
+            continue
+        # a send that errored: find its order by code, side and size among the unlinked ones
+        t = next((x for x in trades if x["ordno"] not in linked and x["code"] == r["symbol"]
+                  and x["side"] == r["side"] and x["shares"] == _int(r.get("qty"))), None)
+        if t is not None:
+            r.update({"order_no": t["ordno"], "broker_trade_id": t["id"], "uncertain": False})
+            linked.add(t["ordno"])
+            print("#%s：永豐有收到，委託書號 %s。" % (r.get("index"), t["ordno"]))
+        else:
+            print("#%s：永豐今天沒有這張委託，應該沒有送出成功。不要重送；要重來就重新規劃、重新檢查、重新回覆 yes。"
+                  % r.get("index"))
+    write_json(a.state, state)
+    logged = {r.get("deal_key") for r in state.get("orders", []) if r.get("deal_key")}
+    done = {(r.get("fingerprint"), r.get("status")) for r in state.get("orders", []) if rec_day(r) == today}
+    terminal = []
+    for r in sent:
+        t = next((x for x in trades if (r.get("order_no") and x["ordno"] == r["order_no"])
+                  or (r.get("broker_trade_id") and x["id"] == r["broker_trade_id"])), None)
+        label = "#%s 委託書號 %s" % (r.get("index"), r.get("order_no") or "不明")
+        if t is None:
+            print("%s：永豐今天的委託裡找不到。" % label)
+            continue
+        for d in t["deals"]:
+            key = "%s:%s" % (t["ordno"] or t["id"], d["seq"])
+            if key in logged:
+                continue
+            apply_fill(a.portfolio, cfg, r["symbol"], r["side"], d["shares"], d["price"], today, r.get("trade"),
+                       None, r.get("name"))
+            log_fill(a.state, now, today, r["symbol"], r["side"], d["shares"], d["price"], r.get("lot"),
+                     r.get("trade"), {"deal_key": key, "order_no": t["ordno"], "broker": "shioaji"})
+            logged.add(key)
+            print("%s：記錄成交 %s，成交價 %s。" % (label, tw.fmt_shares(d["shares"]), tw.fmt_price(d["price"], r["symbol"])))
+        end = {"Cancelled": "cancelled", "Failed": "failed"}.get(t["status"])
+        if end and (r.get("fingerprint"), end) not in done:
+            terminal.append(_carry(r, {"at": taipei_iso(now), "date": today, "index": r.get("index"),
+                                       "fingerprint": r.get("fingerprint"), "symbol": r["symbol"],
+                                       "name": r.get("name", ""), "side": r["side"], "plain": r.get("plain"),
+                                       "status": end, "order_no": t["ordno"], "broker": "shioaji",
+                                       "broker_status": t["status"], "broker_msg": t["msg"]}))
+        print("%s：%s，成交 %s／%s 股%s。" % (label, SJ_STATUS.get(t["status"], t["status"]),
+                                        "{:,}".format(t["deal_shares"]), "{:,}".format(t["shares"]),
+                                        ("，刪單 %s 股" % "{:,}".format(t["cancel_shares"])) if t["cancel_shares"] else ""))
+    if terminal:
+        state = load_state(a.state)
+        state.setdefault("orders", []).extend(terminal)
+        write_json(a.state, state)
+    pf = read_json(a.portfolio, "持股", required=False)
+    if pf:
+        print("現金現在 %s（%s）。" % (tw.twd(pf.get("cash", 0)), a.portfolio))
+    return 0
+
+
+def cmd_cancel(a):
+    orders, cfg, risk, state, today, now = _load(a)
+    _need_shioaji(cfg)
+    order = _pick(orders, a.index)
+    rec = latest(state, fingerprint(order), today)
+    if not rec or rec.get("status") != "placed" or rec.get("broker") != "shioaji":
+        raise TicketError("第 %d 張今天沒有用 ticket.py send 送出，沒有可以刪的委託" % a.index)
+    if not _plain_yes(a.reply):
+        print("沒有刪單：要使用者針對這一張明確回覆 yes（或「是」），才會送出刪單。")
+        return 1
+    live = not cfg.get("paper", True)
+    info = _with_broker(live, lambda s: s.cancel(rec.get("order_no", ""), rec.get("broker_trade_id", "")))
+    if info and info["status"] == "Cancelled":
+        state = load_state(a.state)
+        state["orders"].append(_carry(rec, {"at": taipei_iso(now), "date": today, "index": a.index,
+                                            "fingerprint": rec.get("fingerprint"), "symbol": rec["symbol"],
+                                            "name": rec.get("name", ""), "side": rec["side"], "plain": rec.get("plain"),
+                                            "status": "cancelled", "order_no": rec.get("order_no"),
+                                            "broker": "shioaji", "reply": a.reply}))
+        write_json(a.state, state)
+        print("已刪單：第 %d 張（委託書號 %s）。已經成交的部分刪不掉，用 sync 記錄。" % (a.index, rec.get("order_no")))
+    else:
+        print("已送出刪單要求，永豐目前的狀態是 %s：等一下用 ticket.py sync 確認。"
+              % SJ_STATUS.get((info or {}).get("status"), (info or {}).get("status")))
+    return 0
+
+
+def cmd_positions(a):
+    cfg = read_json(a.config, "設定檔", required=False) or {}
+    _need_shioaji(cfg)
+    pos = _with_broker(not cfg.get("paper", True), lambda s: s.positions())
+    pf = read_json(a.portfolio, "持股", required=False) or {}
+    mine = {str(p.get("symbol") or p.get("ticker") or "").upper(): int(p.get("shares", 0))
+            for p in pf.get("positions", [])}
+    codes = sorted(set(pos) | set(mine))
+    if not codes:
+        print("永豐和 %s 都沒有庫存。" % a.portfolio)
+        return 0
+    off = 0
+    for c in codes:
+        b, m = pos.get(c, {}).get("shares", 0), mine.get(c, 0)
+        flag = "" if b == m else "  <- 不一樣"
+        off += 1 if flag else 0
+        print("%-7s 永豐 %s 股（昨日庫存 %s 股），%s %s 股%s"
+              % (c, "{:,}".format(b), "{:,}".format(pos.get(c, {}).get("yd_shares", 0)), a.portfolio, "{:,}".format(m), flag))
+    if off:
+        print("有 %d 檔不一樣：以永豐為準。先執行 ticket.py sync；還是不一樣，就是有成交沒記到（例如在 App 手動下的單），用 fill 補記。" % off)
+    return 0
+
+
+def cmd_probe(a):
+    """Simulation only: log in, list the accounts, look up one code. Places nothing."""
+    code = str(a.symbol).strip().upper()
+
+    def look(s):
+        accts = s.accounts()
+        c = s.contract(code)
+        return accts, c
+
+    accts, c = _with_broker(False, look)
+    print("已登入永豐金 Shioaji 模擬環境（沒有下任何單）。")
+    for x in accts:
+        print("  帳戶：%s%s" % (x["kind"], "" if x["signed"] is None else "，已簽署 API 下單：%s" % ("是" if x["signed"] else "否")))
+    fields = [("代號", "code"), ("名稱", "name"), ("市場", "exchange"), ("參考價", "reference"),
+              ("漲停", "limit_up"), ("跌停", "limit_down"), ("可否當沖", "day_trade")]
+    print("  合約 %s：" % code)
+    for label, attr in fields:
+        v = getattr(c, attr, None)
+        if v is not None:
+            print("    %s：%s" % (label, _sinopac()._name(v) if attr in ("exchange", "day_trade") else v))
+    print("正式環境要先完成：在簽署中心簽 API 下單條款，並在模擬環境完成登入和下單測試（約 5 分鐘審核）。")
+    return 0
+
+
 def main(argv=None):
     tw.utf8_stdio()
     ap = argparse.ArgumentParser(description="委託單和你的 yes（trader-broker）。不會自己下單。")
@@ -900,13 +1238,32 @@ def main(argv=None):
     p.add_argument("--state", default="trader/state/broker.json")
     clock(p)
     p.add_argument("--all", action="store_true")
+    p = sub.add_parser("send", help="（永豐金 Shioaji）送出一張已同意的委託")
+    common(p)
+    p.add_argument("--index", type=int, required=True)
+    p.add_argument("--live", action="store_true", help="真錢帳戶（\"paper\": false）一定要加，模擬交易不能加")
+    p = sub.add_parser("sync", help="（永豐金 Shioaji）把今天的委託狀態和成交記回來")
+    p.add_argument("--config", default="trader/config.json")
+    p.add_argument("--state", default="trader/state/broker.json")
+    p.add_argument("--portfolio", default="trader/portfolio.json")
+    clock(p)
+    p = sub.add_parser("cancel", help="（永豐金 Shioaji）刪掉一張已送出、還沒成交的委託")
+    common(p)
+    p.add_argument("--index", type=int, required=True)
+    p.add_argument("--reply", required=True, help="使用者的回覆，一字不改")
+    p = sub.add_parser("positions", help="（永豐金 Shioaji）永豐的庫存，對照 trader/portfolio.json")
+    p.add_argument("--config", default="trader/config.json")
+    p.add_argument("--portfolio", default="trader/portfolio.json")
+    p = sub.add_parser("probe", help="（永豐金 Shioaji）只用模擬環境：登入、列帳戶、查一檔合約，不下單")
+    p.add_argument("--symbol", default="2303")
     a = ap.parse_args(argv)
     if not a.cmd:
         ap.print_help()
         return 1
     try:
         return {"show": cmd_show, "approve": cmd_approve, "decline": cmd_decline, "result": cmd_result,
-                "fill": cmd_fill, "flatten": cmd_flatten, "log": cmd_log}[a.cmd](a)
+                "fill": cmd_fill, "flatten": cmd_flatten, "log": cmd_log, "send": cmd_send, "sync": cmd_sync,
+                "cancel": cmd_cancel, "positions": cmd_positions, "probe": cmd_probe}[a.cmd](a)
     except TicketError as e:
         print("ticket.py：%s" % e, file=sys.stderr)
         return 1

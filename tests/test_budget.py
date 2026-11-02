@@ -25,7 +25,7 @@ CONTRACT_CFG = {
     "require_stop": True, "no_entries_before": "09:15", "no_entries_after": "13:00", "flat_by": "13:20",
     "day_trade_enabled": False, "day_trade_quota_twd": None, "allow_overnight": False,
     "allow_disposition": False, "fee_discount": 1, "fee_min_twd": 20, "fee_min_odd_twd": 1,
-    "extra_closed": {}, "broker_name": "", "paper": True, "blocked": [], "allow_options": False,
+    "extra_closed": {}, "broker": "manual", "broker_name": "", "paper": True, "blocked": [], "allow_options": False,
     "allow_margin": False, "allow_short": False,
 }
 # the example split on 2026-11-02's closes: NT$300,000, 10 % kept in cash
