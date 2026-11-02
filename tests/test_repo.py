@@ -14,6 +14,8 @@ ABOUT = ("11 Claude skills for day trading: scan thousands of charts, track brea
 # skills on the way to an order carry the safety block
 ORDER_PATH = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine", "trader-budget",
               "trader-pelosi", "trader-risk", "trader-broker", "trader-alerts"]
+# converted to the Taiwan market so far: Chinese SKILL.md, tools on twmarket.py
+TW_SKILLS = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine"]
 V1_ONLY = ["trader-copycat", "trader-screener", "trader-tax", "trader-rebalance"]
 
 
@@ -54,8 +56,22 @@ class Repo(unittest.TestCase):
         for s in ORDER_PATH:
             _, text = frontmatter(os.path.join(ROOT, s, "SKILL.md"))
             low = " ".join(text.lower().split())
-            self.assertIn("not financial advice", low, s)
+            self.assertIn("不構成投資建議" if s in TW_SKILLS else "not financial advice", low, s)
             self.assertIn("yes", low, s)
+
+    def test_tw_skills_run_on_the_taiwan_core(self):
+        for s in TW_SKILLS:
+            folder = os.path.join(ROOT, s)
+            self.assertTrue(os.path.isfile(os.path.join(folder, "twmarket.py")), s)
+            tools = [f for f in os.listdir(folder) if f.endswith(".py") and f != "twmarket.py"]
+            for f in tools:
+                with open(os.path.join(folder, f), encoding="utf-8") as fh:
+                    src = fh.read()
+                self.assertIn("import twmarket", src, "%s/%s" % (s, f))
+                self.assertNotIn("eastern_offset", src, "%s/%s still keeps New York time" % (s, f))
+                self.assertNotIn("NYSE_HOLIDAYS", src, "%s/%s still keeps the NYSE calendar" % (s, f))
+            _, text = frontmatter(os.path.join(folder, "SKILL.md"))
+            self.assertIn("## 安全", text, s)
 
     def test_plugin_manifest_points_at_the_root_skills(self):
         with open(os.path.join(ROOT, ".claude-plugin", "plugin.json")) as fh:

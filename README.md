@@ -1,5 +1,12 @@
 # The Day Trader skill
 
+> **台股版（轉換中）。** 這是 [Jakeschincariol/day-trader-skill](https://github.com/Jakeschincariol/day-trader-skill)
+> 的台股 fork：[eric861129/day-trader-skill-TW](https://github.com/eric861129/day-trader-skill-TW)。
+> 已經改成台股的：`trader-scanner`、`trader-entry`、`trader-exit`、`trader-timemachine`，共用每個資料夾裡的
+> `twmarket.py`（台北時間、證交所休市日與颱風休市、升降單位、漲跌停、整股與零股、手續費與證交稅）。
+> 範例交易是聯電 2303，2026-11-02 的開盤區間突破。其餘七個 skill 還是美股原版，會分階段轉換；
+> 下面的英文說明在轉換完成前仍是原版內容。
+
 11 Claude skills for day trading: scan thousands of charts, track breaking news, time every entry and exit, and replay every outcome before you risk a dollar.
 
 Free, MIT, no signup, no API key. The tools are plain Python that read free

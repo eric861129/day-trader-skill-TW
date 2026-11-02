@@ -1,203 +1,190 @@
 ---
 name: trader-scanner
 description: >-
-  Chart Scanner. Scans thousands of charts for setups: opening-range
-  breakouts, flags, oversold bounces. Builds the list of US-listed common
-  stocks, ordinary shares and ADRs from Nasdaq Trader's symbol directories,
-  runs a pre-market scan of daily closes (20-day closing-high breakout, bull
-  flag, reclaimed the 20-day average, oversold, oversold bounce) and an
-  intraday opening-range breakout scan on 5-minute bars, then writes
-  trader/watchlist.json for trader-news and trader-entry. Free Yahoo data,
-  bar by bar. Use when the user says "scan the market", "find me setups",
-  "what is breaking out", "opening range breakouts", "scan for bull flags",
-  "oversold stocks", "pre-market scan", "build my watchlist", "what should I
-  look at today", or at the start of a trading day before /trader-news.
+  看盤掃描器（Chart Scanner）。一次掃上市、上櫃兩千多檔股票和 ETF 的圖，列出符合規則的型態：
+  開盤區間突破、多頭旗形、收盤創 20 日新高、站回 20 日均線、超賣與超賣反彈。從證交所的 ISIN
+  清單建立上市、上櫃股票、創新板與 ETF 的代號清單（順便更新證交所休市日），開盤前用日收盤價
+  掃型態，盤中用 5 分 K 掃開盤區間突破，處置股預設排除，寫出 trader/watchlist.json 給
+  trader-news 和 trader-entry。Yahoo 免費資料，一根一根 K 棒看。使用時機：使用者說「幫我掃盤」
+  「找型態」「今天有什麼在突破」「開盤區間突破」「掃多頭旗形」「超賣股」「盤前掃描」「建立觀察
+  清單」「今天該看什麼」、"scan the market"、"opening range breakouts"，或交易日一開始、
+  在 /trader-news 之前。
 argument-hint: "[universe | daily | orb] [--at HH:MM]"
 ---
 
 # trader-scanner
 
-The Chart Scanner is the first step of a day trade. It reads thousands of
-free charts and lists the ones that match a rule. That is all it does. A scan
-is a list of charts that match a rule, not a list of stocks to buy, and a
-setup on a chart is not a prediction. Most people who day trade lose money;
-the scanner does not change that. It only saves you from flipping through
-5,000 charts by hand.
+看盤掃描器是當沖的第一步。它讀幾千張免費的圖，把符合某條規則的列出來，就這樣。掃描結果是
+符合規則的圖，不是買進清單；圖上出現型態也不是預測。大多數做當沖的人是賠錢的，掃描器改變不
+了這件事，它只是讓你不用一張一張翻兩千多張圖。
 
-`${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
+下面的 `${CLAUDE_SKILL_DIR}` 是這個 skill 的資料夾（這份 SKILL.md 所在的地方）。
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scan.py" universe                       # -> trader/universe.txt
-python3 "${CLAUDE_SKILL_DIR}/scan.py" daily                          # before the open -> trader/watchlist.json
-python3 "${CLAUDE_SKILL_DIR}/scan.py" daily --symbols TSLA,NVDA,AMD  # or --watchlist FILE, --limit 200
-python3 "${CLAUDE_SKILL_DIR}/scan.py" orb                            # after 9:50 AM ET -> trader/watchlist.json
-python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --at 10:15                 # cut the clock at 10:15 AM ET
+python3 "${CLAUDE_SKILL_DIR}/scan.py" universe                        # -> trader/universe.txt，並更新休市日
+python3 "${CLAUDE_SKILL_DIR}/scan.py" daily                           # 開盤前 -> trader/watchlist.json
+python3 "${CLAUDE_SKILL_DIR}/scan.py" daily --symbols 2330,2303,6488  # 或 --watchlist 檔案、--limit 200、--kind ETF
+python3 "${CLAUDE_SKILL_DIR}/scan.py" orb                             # 09:20 之後 -> trader/watchlist.json
+python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --at 09:45                  # 時間切在台北時間 09:45
 python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --watchlist trader/watchlist.json --json
 ```
 
-Flags: `--min-price 5` and `--min-volume` (daily 1,000,000, orb 0),
-`--or-minutes 15`, `--max-confirm 200` (orb stage 2),
-`--now "2026-10-19 10:15"` (New York time) to pin the clock, `--offline PATH`
-to read saved Yahoo files, `--no-write`, `--show N`, `--json`. Exit code 0
-when the scan found something, 1 when it found nothing or could not run (the
-reason is one plain line).
+旗標：`--min-price 10` 和 `--min-volume`（股數；daily 預設 1,000,000 股也就是 1,000 張，orb 預設 0）、
+`--kind 股票,創新板,ETF`、`--or-minutes 15`、`--max-confirm 200`（orb 第二階段）、
+`--now "2026-11-02 09:45"`（台北時間）固定時鐘、`--offline PATH` 讀存下來的 Yahoo 檔案、
+`--disposition PATH` 讀存下來的處置股清單（`none` 表示不檢查）、`--keep-disposition`、
+`--no-write`、`--show N`、`--json`。有找到東西時結束碼是 0；沒找到或跑不了是 1（原因印成一行）。
 
-## What it reads and writes
+## 讀什麼、寫什麼
 
-| file | what |
+| 檔案 | 內容 |
 | --- | --- |
-| `trader/universe.txt` | written by `universe`: one `SYMBOL\|Name` a line, read by `daily` and `orb` |
-| `trader/watchlist.json` | written by `daily` and `orb`: `mode`, `as_of`, `universe`, `scanned`, `failed`, `hits[]`. trader-news and trader-entry read `hits[].symbol` |
-| `trader/config.json` | read by `orb`: `no_entries_after` (default 15:30) |
+| `trader/universe.txt` | `universe` 寫的，一行一檔 `代號\|名稱\|市場\|類別`（`2303\|聯電\|TWSE\|股票`），`daily` 和 `orb` 讀它，名稱也從這裡來 |
+| `trader/watchlist.json` | `daily` 和 `orb` 寫的：`mode`、`as_of`、`universe`、`scanned`、`failed`、`disposition`、`hits[]`。每一筆 hit 有 `symbol`（代號）、`market`（TWSE / TPEx）、`name`、`kind`。trader-news 和 trader-entry 讀 `hits[].symbol` |
+| `trader/state/calendar-YYYY.json` | `universe` 從證交所抓的休市日，其他 skill 也讀 |
+| `trader/config.json` | `orb` 讀 `no_entries_after`（預設 13:00）；颱風假這類臨時休市寫在 `extra_closed` |
 
-## The universe
+## 代號清單
 
-`universe` downloads `nasdaqlisted.txt` and `otherlisted.txt` from
-nasdaqtrader.com/dynamic/SymDir and keeps a row when, in this order:
+`universe` 下載證交所的兩份 ISIN 清單：上市（`isin.twse.com.tw/isin/C_public.jsp?strMode=2`）和上櫃
+（`strMode=4`）。頁面是 cp950 編碼的 HTML，每一段前面有一列段落標題。只留三段：
 
-1. It is not a test issue, not an ETF, not NextShares.
-2. It is a plain ticker: 1 to 5 letters, or 1 to 4 letters plus one class
-   letter after a dot (BRK.B). A `$` preferred (ABR$D) is out, and so is a
-   `.U`, `.W` or `.R` suffix (units, warrants, rights).
-3. Out, whatever else the name says: warrants; SPAC units and rights ("Units,
-   each consisting of", "Rights to receive"); notes, ETNs, debentures; a %
-   coupon; "Depositary Shares" that are not American or Global (those carry a
-   preferred).
-4. In: the name calls it common stock, common shares or units, ordinary
-   shares, shares of beneficial interest, ADS / ADR / American or Global
-   depositary shares, or partnership or trust units.
-5. Out: the name still says unit, right, bond, preferred or preference.
-6. In: everything else (plain names like "AMETEK, Inc.").
+1. **股票**（類別「股票」），上市和上櫃都有。
+2. **創新板**（類別「創新板」）：只在上市清單裡。一般投資人要符合資格才能買，掃描照樣列出，類別會標出來。
+3. **ETF**（類別「ETF」），上市和上櫃都有，包括槓桿型、反向型和債券 ETF。
 
-On the Oct 19 2026 files this keeps 5,943. The reel said 5,259: that count
-came from an ad hoc filter (names that say common or ordinary, no ADRs). All
-5,259 of those are in this list; the 684 extra are mostly ADRs, closed-end
-funds and partnership units. The Oct 20 files gave 5,942.
+權證、特別股、臺灣存託憑證（TDR）、ETN、不動產投資信託和資產基礎證券都不收。2026-11-02 的清單
+保留 2,350 檔：上市 1,058 檔股票、31 檔創新板、245 檔 ETF；上櫃 897 檔股票、119 檔 ETF。
 
-## The daily scan (before the open)
+它也順便從證交所更新今年和明年的休市日，存在 `trader/state/calendar-YYYY.json`。證交所還沒公布的
+年份（2026-11-02 時的 2027 年）只印一行說明，不算錯誤；那一年先只排除週末。颱風假這類臨時休市
+要自己寫進 `trader/config.json` 的 `extra_closed`。
 
-Yahoo's spark endpoint returns closes for 20 symbols a request, so 5,942
-symbols take 298 requests. On Oct 20 2026 that took 145 seconds with the
-polite pause (0.3 s). Liquidity comes from the spark meta: last price at
-least `--min-price` and last session's volume at least `--min-volume`. Run it
-before the open or after the close: during the session the volume is the
-day's so far, and today's daily bar is left out until 4:00 PM.
+## 盤前掃描（開盤前）
 
-The setups are computed from daily closes only (spark has no highs or lows),
-so they are close cousins of the reel's `refs/scan.py`, which used highs and
-lows:
+Yahoo 的 spark 一次回 20 檔的收盤價，所以 2,350 檔要 118 次請求，中間有禮貌地停 0.3 秒。流動性：
+最近一根完整日 K 的收盤價至少 `--min-price`（10 元），Yahoo 給的成交量至少 `--min-volume`
+（1,000 張）。在開盤前或收盤後跑：盤中的成交量只是今天到目前為止的量，而今天的日 K 要 13:30
+收盤後才算數。
 
-| setup | the rule on closes |
+型態只用日收盤價算（spark 沒有高低點）：
+
+| 型態 | 收盤價上的規則 |
 | --- | --- |
-| `breakout_20d` | the last close is above every close of the 20 sessions before it |
-| `bull_flag` | up more than 10 % over the 10 sessions before the last 5, then the last 5 closes inside a 5 % range |
-| `reclaim_ma20` | the close before was under its 20-day average, the last close is above it |
-| `oversold` | RSI 14 (Wilder) under 30 |
-| `oversold_bounce` | RSI 14 was under 30 yesterday and today closed up |
+| `breakout_20d` 收盤創 20 日新高 | 最後一個收盤價高於前 20 個交易日的每一個收盤價 |
+| `bull_flag` 多頭旗形 | 最後 5 天之前的 10 天漲超過 10%，然後最後 5 個收盤價擠在 5% 的區間裡 |
+| `reclaim_ma20` 站回 20 日均線 | 前一天收在 20 日均線下，最後一天收在均線上 |
+| `oversold` 超賣 | RSI 14（Wilder）低於 30 |
+| `oversold_bounce` 超賣反彈 | 昨天 RSI 14 低於 30，今天收紅 |
 
-A closing-high breakout fires more often than an intraday-high one (KO on
-Oct 16 broke its 20-day closing high, not its 20-day intraday high). Hits are
-listed most traded first (price times volume).
+收盤創新高比盤中創新高容易出現。結果按成交金額（收盤價乘成交量）大的排前面。
 
-## The opening-range breakout scan (during the session)
+## 開盤區間突破（盤中）
 
-The opening range is the first `--or-minutes` (15) of the session: the 9:30,
-9:35 and 9:40 five-minute bars. A hit is the first completed 5-minute bar
-to CLOSE above the range high, at that bar's close time.
+開盤區間是開盤後的前 `--or-minutes`（15）分鐘：09:00、09:05、09:10 三根 5 分 K。突破是開盤區間
+之後第一根「收盤」站上區間高點的完整 5 分 K，時間記那根 K 棒收完的時間。最早 09:20 才有答案。
 
-1. Stage 1, every symbol: spark closes of today's 5-minute bars, 20 a
-   request. A chart goes on only if a completed bar after the range closed at
-   or above the highest close of the range. That is a necessary condition
-   (the range high is at least every range close), so no breakout is lost.
-2. Stage 2, each candidate: the v8 chart with real highs and lows, one
-   request each. Range high = the highest high of the range bars, range low =
-   the lowest low. On a strong morning most charts are candidates, so stage 2
-   checks at most `--max-confirm` (200) of them, the most traded first (price
-   times volume so far), and prints PARTIAL with the count it skipped.
-   `--max-confirm 0` checks them all.
+1. 第一階段，每一檔：用 spark 抓今天 5 分 K 的收盤價，一次 20 檔。區間之後有一根完整 K 棒收在
+   區間最高收盤價以上，才列為候選。區間高點一定不低於區間裡的任何收盤價，所以這是必要條件，
+   不會漏掉真的突破。
+2. 第二階段，每一檔候選：抓有真實高低點的 v8 圖，一檔一次請求。區間高點 = 三根 K 棒的最高價，
+   區間低點 = 最低價。盤勢強的早上大部分的圖都是候選，所以第二階段最多看 `--max-confirm`（200）
+   檔，成交金額大的先看，沒看完會印「只看了一部分」和略過的數量。`--max-confirm 0` 全部看。
 
-Timing, live on Tue Oct 20 2026 (a strong morning): 100 liquid names at
-10:01 AM took 35 seconds (5 spark requests, 70 v8 charts, 51 of 91 usable
-charts broke out). The whole universe at 10:03 AM took about 4 minutes (298
-spark requests, then 200 v8 charts): 2,448 usable charts, 1,782 candidates,
-the 200 most traded checked, 119 of those broke out. For a fast answer, scan
-the daily watchlist or a list of names you trade (`--watchlist`, `--symbols`).
+09:00 到時間切點的每一根 5 分 K 都要在，圖才算可用；少一根代表沒成交或暫停交易。收盤價是空的
+K 棒丟掉，不在 5 分鐘格線上的 K 棒（盤中的即時跳動）丟掉，K 棒要到開始時間加 5 分鐘才算收完。
+只算連續交易的 K 棒（09:00 到 13:20 開始的 53 根）：Yahoo 的 13:25 收盤集合競價那根是空的，
+當天另外有一筆 13:30 的收盤價、成交量 0，兩個都不算。突破那根收在漲停價時會標「漲停：可能買
+不到」。09:20 之前、週末或休市日、13:30 收盤後，或過了 `no_entries_after`（突破已經過期），都只印
+一行說明，不寫檔。
 
-A chart is usable only when every 5-minute bar from 9:30 to the cutoff is
-there; a missing bar means a halt or a thin stock. Null closes are dropped,
-a bar off the 5-minute grid (the live tick, like 10:58:07) is dropped, and a
-bar counts only once it is complete (start + 5 minutes). Before 9:50 AM, on a
-weekend or holiday, after the close, or after `no_entries_after` (an expired
-setup) it prints one plain line and writes nothing. The 1:00 PM early closes
-are in the calendar.
+## 處置股
 
-## Data and limits
+證交所和櫃買中心每天公布處置股（`openapi.twse.com.tw/v1/announcement/punish`、
+`www.tpex.org.tw/openapi/v1/tpex_disposal_information`）。處置期間這些股票改成人工管制的分盤撮合，
+每隔幾分鐘才撮合一次（清單上寫明；2026-11-02 清單上的都是約每 2 分鐘），而且要先收足買進價金；
+5 分 K 的突破對它們沒有意義。
+掃描到的處置股預設不列入 hits，在一行說明裡列出代號、名稱、處置到哪天、多久撮合一次；
+`--keep-disposition` 會照樣列出並標上 `disposition`。清單抓不到時只印一行說明，照樣掃描。
+離線重播只在給了 `--disposition`（存下來的清單資料夾或檔案）時才檢查。
 
-- Yahoo's chart and spark endpoints are free, unofficial and can lag. Bars are
-  5-minute bars, bar by bar, never tick by tick. query2 first, query1 on a 429
-  or 5xx, one retry after a 5-second wait on a 429.
-- Partial results are said as partial: "Fetched 4,980 of 5,259 charts (279
-  failed or had no data)". Never round a partial scan up to "the whole market".
-- NYSE holidays and early closes for 2026 and 2027 (nyse.com, read 2026-10-13).
+## 資料與限制
 
-## Steps
+- Yahoo 的 chart 和 spark 免費、非官方、可能延遲。K 棒是 5 分 K，一根一根看，不是逐筆。先試
+  query2，遇到 429 或 5xx 換 query1，429 等 5 秒重試一次。
+- Yahoo 的 spark 會省略剛好落在前後兩點連線上的收盤價（例如 108.0、108.5、109.0 的中間那個，
+  或一段一樣的收盤價）。台股升降單位粗，這很常見：2026-11-02 那 240 檔在 09:00 到 13:20 之間被省略
+  了 1,885 根 5 分 K，3 個月的日 K 有 119 檔少了 1 到 7 天。工具會按時間內插補回，對齊升降單位，
+  日 K 只補證交所的交易日。對照 v8 圖，2026-11-02 的 12,591 根 5 分 K 全部一致；3 個月日 K 抽查
+  5 檔也一致。
+- Yahoo 的日線在休市日也可能有一根 K 棒：2026-10-23 薔琵颱風全日休市，240 檔裡有 235 檔還是有一根
+  10-23 的日 K，收盤價照抄前一天。這種 K 棒會讓 RSI 和 20 日規則多算一天沒漲沒跌，所以凡是證交所
+  行事曆上不是交易日的日 K 一律略過，輸出會說一次略過了幾檔。
+- 部分結果就說部分：「抓到 N 檔中的 M 檔圖（K 檔失敗或沒有資料）」照實說。不要把部分掃描說成
+  「整個市場」。
+- 休市日來自證交所的開休市日期（2026 年已內建，`universe` 會更新）。台股沒有半日市。
 
-1. Once a week or so: `scan.py universe`.
-2. Before the open: `scan.py daily`. Tell the user the counts (fetched,
-   liquid, scanned, hits) and the top few by setup.
-3. After 9:50 AM ET (10:15 is the classic): `scan.py orb`. Tell the user how
-   many usable charts broke their range and when, and that a later hit is
-   closer to the price now.
-4. The user picks one chart. Hand it on: `/trader-news TICKER` (what is moving
-   it), then `/trader-entry TICKER` (the entry bar by bar). Never pick for them.
+## 步驟
 
-## Example: the reel
+1. 大約一週一次：`scan.py universe`。
+2. 開盤前：`scan.py daily`。跟使用者說數量（抓到、通過流動性、掃描、符合），每種型態挑前幾檔講。
+3. 09:20 之後（09:45 是常用的時間點）：`scan.py orb`。說有幾張可用的圖突破了開盤區間、什麼時候
+   突破，也說越晚突破的離現在的價格越近。說出哪些處置股被排除。
+4. 使用者自己挑一張圖。交下去：`/trader-news 代號`（什麼消息在推它），然後 `/trader-entry 代號`
+   （一根一根 K 棒看進場）。不要替使用者挑。
 
-Monday Oct 19 2026, scan at 10:15 AM over the reel's 234-ticker wall
-(`tests/fixtures/trader-scanner/wall5m-2026-10-19.json.gz`, real Yahoo charts):
+## 範例：聯電 2026-11-02
+
+週一 2026-11-02 開盤前 08:30，用 240 檔成交金額最大的股票和 ETF 的日線
+（`tests/fixtures/trader-scanner/daily-spark-2026-11-02.json.gz`，收盤價到 10-30）：
 
 ```
-python3 scan.py orb --offline wall5m-2026-10-19.json.gz --now "2026-10-19 10:15" --min-price 0
-Fetched 233 of 234 charts (1 failed or had no data); 231 usable; 95 candidates, 95 confirmed with real highs and lows.
-42 of 231 charts closed above their opening-range high by 10:15 AM:
-   9:50 AM  AMC         $2.97  range 2.90 to 2.96  +0.50% over
+python3 scan.py daily --offline daily-spark-2026-11-02.json.gz --now "2026-11-02 08:30" --disposition .
+每日掃描，2026-11-02（一）08:30，收盤價到 2026-10-30（Yahoo spark，只有日收盤價），給 2026-11-02 的盤用。
+抓到 240 檔中的 240 檔圖。216 檔通過流動性門檻（收盤價 10 元以上、成交量 1,000 張以上）；掃描 216 檔。
+Yahoo 的日線裡有 235 檔帶著休市日的 K 棒（2026-10-23，收盤價照抄前一天），已略過，不算進型態。
+28 檔符合型態：17 檔收盤創 20 日新高、2 檔多頭旗形、1 檔站回 20 日均線、8 檔超賣（RSI 低於 30）。
+  2308       1,335  RSI  26.3  超賣（RSI 低於 30）  台達電
+  2303       111.5  RSI  27.8  超賣（RSI 低於 30）  聯電
   ...
-  10:15 AM  TSLA      $364.18  range 354.47 to 362.18  +0.55% over
+處置股不列入（1 檔）：4526 東台（處置到 11/9，約每 2 分鐘撮合一次）。
 ```
 
-The reel's wall had no price floor (AMC at $2.97 is one of the 42), hence
-`--min-price 0`; with the default $5 floor it is 41. TSLA's range is the 9:30
-to 9:40 bars, high 362.18, low 354.47; the 10:10 bar closed at 364.18, 0.55 %
-over the high, at 10:15 AM. The user picks TSLA and Claude hands it to
-`/trader-news TSLA`, then `/trader-entry TSLA`. In the reel the universe was
-5,259 US stocks; this tool's rule gives 5,943 on the same files.
+09:45，同樣 240 檔當天的 5 分 K（`wall5m-2026-11-02.json.gz`，真的 Yahoo 圖）：
 
-The pre-market scan that morning (closes through Fri Oct 16, the reel's daily
-charts) tags BLK, CI, XOM and HD a 20-day breakout, CCL a bull flag, F, JPM
-and GE a reclaim of the 20-day average, and BAC, MS, RIVN and PLUG oversold,
-as the reel did. On closes it also tags KO (breakout), RCL (flag) and PNC (an
-oversold bounce).
+```
+python3 scan.py orb --offline wall5m-2026-11-02.json.gz --now "2026-11-02 09:45" --disposition .
+開盤區間突破掃描，2026-11-02（一）09:45：15 分鐘開盤區間（09:00 到 09:15），5 分 K，Yahoo。
+抓到 240 檔中的 240 檔圖；232 檔可用（另有 5 檔低於股價或成交量門檻）；161 檔候選，161 檔用真實高低點確認。
+232 檔可用的圖裡，有 69 檔在 09:45 前收盤站上開盤區間高點：
+  09:20  2303       110.0  區間 107.5 到 109.5  高出 0.46%  聯電
+  ...
+  09:20  6271       216.5  區間 195.5 到 216.0  高出 0.23%  同欣電  漲停：可能買不到
+  ...
+處置股不列入（1 檔）：4526 東台（處置到 11/9，約每 2 分鐘撮合一次）。
+```
 
-## Rules
+聯電的開盤區間是 09:00 到 09:10 三根 K 棒，高點 109.5、低點 107.5；09:15 那根收 110.0，比高點
+多 0.46%，09:20 收完。開盤前它是超賣名單上的一檔，開盤後突破了開盤區間。使用者挑聯電，Claude
+交給 `/trader-news 2303`，再交給 `/trader-entry 2303`。東台在突破名單裡，但它正在處置，
+所以被排除。名稱來自 `trader/universe.txt`。
 
-- Say what was scanned: how many symbols, how many charts came back, how many
-  were usable, and the time of the data.
-- Say "matched a rule", never "a buy", "a winner" or "a good trade".
-- Never print a P&L, a return or a profit figure.
-- A hit is stale once the price has moved on. Re-run before acting on it.
+## 規則
 
-## What it never does
+- 說清楚掃了什麼：多少檔、抓到幾張圖、幾張可用、資料的時間。
+- 說「符合規則」，絕不說「買點」「贏家」或「好交易」。
+- 不印損益、報酬率或獲利數字。
+- 價格動了，名單就舊了。要動作之前重跑一次。
+- 掃描不分整股或零股；但零股目前不能現股當沖，今天買的零股最快下一個交易日才能賣。
 
-It never places, sizes or checks an order, never says which stock to buy,
-never calls data real time, and never promises that a setup works.
+## 不做的事
 
-## Safety
+它不下單、不算股數、不檢查委託，不說要買哪一檔，不把資料說成即時，也不保證型態有用。
 
-- Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+## 安全
+
+- 這是教學與工具，不構成投資建議。PASS 只代表通過規則檢查，不是推薦。
+- 預設模擬交易（`"paper": true`）。要不要動用真錢，由使用者自己在自己的設定檔決定。
+- 這套 skill 不會自己下單。只有 trader-broker 會產生委託單，而且三件事都成立才會：trader-risk 今天通過了這一張單、使用者在對話中針對這一張單明確回覆 yes、使用者自己在券商 App 或下單軟體送出。
+- 不做融資、融券、先賣後買、選擇權或期貨，除非設定檔開啟而且使用者確認。
+- 券商帳號、密碼和憑證不在對話裡出現，也不寫進任何檔案。

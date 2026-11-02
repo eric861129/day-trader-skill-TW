@@ -1,168 +1,171 @@
 ---
 name: trader-timemachine
 description: >-
-  Time Machine. Replays every possible outcome of a trade before you risk a
-  dollar: 10,000 simulated sessions plus every past time the setup fired.
-  Takes the plan from trader-exit (entry, stop, target), rebuilds the rest of
-  the day 10,000 times from the stock's own 5-minute bars over the last 60
-  days, and re-runs the same rule on every past session. Prints the odds of
-  target first, stop first, or neither by the close, where the price sits at
-  the close, the average R, the history, and one honest verdict, then hands
-  off to /trader-budget. Use when the user says "run the time machine",
-  "replay this trade", "what are the odds", "simulate this trade", "monte
-  carlo", "backtest this setup", "how often does this hit the target", "is
-  this a coin flip", or after /trader-exit writes a plan, before
-  /trader-budget.
-argument-hint: "[path to plan.json, or TICKER]"
+  時光機。在你動用任何一塊錢之前，把一筆當沖計畫的所有可能結果重播一遍：
+  10,000 次模擬盤，加上這條規則過去每一次觸發的真實結果。讀 trader-exit 的
+  計畫（進場、停損、停利、漲跌停、成本），用這檔股票自己最近 60 天的 5 分 K
+  把當天剩下的盤重建 10,000 次（每一根都夾在漲停和跌停之間），再把同一條規則
+  套回每一個過去的交易日。印出先到停利、先到停損、都沒碰到的機率，收盤前的價格
+  分布，扣掉手續費和當沖證交稅之後的平均 R，歷史紀錄，以及一句誠實的結論，然後
+  交給 /trader-budget。使用時機：「跑時光機」「重播這筆交易」「勝率多少」
+  「模擬這筆交易」「蒙地卡羅」「回測這個型態」「多常碰到停利」「這是不是擲硬幣」
+  「扣掉成本還划算嗎」，或 /trader-exit 寫好計畫之後、/trader-budget 之前。
+  English: "run the time machine", "replay this trade", "monte carlo", "backtest this setup".
+argument-hint: "[plan.json 的路徑，或台股代號]"
 ---
 
 # trader-timemachine
 
-The Time Machine sits between the plan and the money. trader-exit has set
-the entry, the stop and the target. Before anything is sized or sent, this
-skill asks one question: if today plays out like the stock's own last 60
-days, how often does this plan hit the target first, the stop first, or
-neither? It answers with 10,000 replays and with the real record of the same
-rule on every past session. It is a simulation built from the stock's own
-recent bars, not a prediction. Day trading loses most people money, and a
-good-looking replay does not change that.
+時光機站在計畫和錢之間。trader-exit 已經定好進場、停損和停利。在算股數、送出
+委託單之前，這個 skill 只問一個問題：如果今天走得像這檔股票自己最近 60 天，這份
+計畫有多常先碰到停利、先碰到停損，或兩邊都沒碰到？它用 10,000 次重播回答，也用
+同一條規則在每個過去交易日的真實紀錄回答。這是用這檔股票自己最近的 K 棒做的模擬，
+不是預測。大多數做當沖的人都在賠錢，一個好看的重播改變不了這件事。
 
-`${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
+`${CLAUDE_SKILL_DIR}` 是這個 skill 的資料夾（這份 SKILL.md 所在的地方）。
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/timemachine.py" run                    # trader/plan.json, 10,000 replays, seed 19
-python3 "${CLAUDE_SKILL_DIR}/timemachine.py" run --write            # also save trader/timemachine.json
-python3 "${CLAUDE_SKILL_DIR}/timemachine.py" run --until 15:55      # end each replay at your flat-by time
+python3 "${CLAUDE_SKILL_DIR}/timemachine.py" run                    # trader/plan.json，重播 10,000 次，種子 19
+python3 "${CLAUDE_SKILL_DIR}/timemachine.py" run --write            # 另外存成 trader/timemachine.json
+python3 "${CLAUDE_SKILL_DIR}/timemachine.py" run --until 13:20      # 每次重播在你的出場時間（flat_by）結束
 python3 "${CLAUDE_SKILL_DIR}/timemachine.py" run --json
-python3 "${CLAUDE_SKILL_DIR}/timemachine.py" run --symbol TSLA --date 2026-10-19 \
-    --entry 364.18 --stop 358.32 --target 370.04 --entry-time "10:15 AM"
-python3 "${CLAUDE_SKILL_DIR}/timemachine.py" chart --from           # ASCII fan chart of the saved run
+python3 "${CLAUDE_SKILL_DIR}/timemachine.py" run --symbol 2303 --date 2026-11-02 \
+    --entry 110 --stop 108.5 --target 111.5 --entry-time 09:20
+python3 "${CLAUDE_SKILL_DIR}/timemachine.py" chart --from           # 存好的結果畫成 ASCII 扇形圖
 ```
 
-Other flags: `--replays N`, `--seed N` (default 19), `--window N` (default 2
-bars), `--offline FILE` (a saved Yahoo chart JSON, `.json` or `.json.gz`),
-`--now "2026-10-19 10:15"` (New York time) to pin the clock.
+其他參數：`--replays N`、`--seed N`（預設 19）、`--window N`（預設前後 2 根）、
+`--market TWSE|TPEx`（不給就看 plan、`trader/universe.txt`，再不行先試 `.TW` 再試
+`.TWO`）、`--config`（手續費折扣，預設 `trader/config.json`）、`--offline FILE`
+（存好的 Yahoo 線圖 JSON，`.json` 或 `.json.gz`）、`--now "2026-11-02 09:25"`
+（台北時間）固定時鐘。時間一律用 24 小時制。
 
-## What it reads and writes
+## 讀什麼、寫什麼
 
-| file | what |
+| 檔案 | 內容 |
 | --- | --- |
-| `trader/plan.json` | the plan from trader-exit: symbol, date, entry, entry_time / entry_bar, stop, stop_rule, target, target_r, opening range |
-| Yahoo chart API | one request: 60 days of 5-minute bars (`range=60d&interval=5m`), free and unofficial, can lag |
-| `trader/timemachine.json` | with `--write`: `{plan, mc, history}` plus the verdict. `mc` holds the odds, percentiles, the fan-chart bands, 160 sample paths and a 24-bin histogram of the close |
+| `trader/plan.json` | trader-exit 的計畫：代號、市場、日期、進場、entry_time / entry_bar、停損、stop_rule、停利、target_r、開盤區間，以及漲跌停（limit_up / limit_down / prev_close）和成本（cost_per_share / cost_r） |
+| `trader/config.json` | 只讀手續費：`fee_discount`（6 折寫 0.6）、`fee_min_twd`、`fee_min_odd_twd`；以及 `extra_closed`（颱風假之類臨時休市） |
+| `trader/universe.txt` | 計畫沒寫市場時，用來判斷上市（.TW）還是上櫃（.TWO） |
+| Yahoo 線圖 API | 一次請求：60 天的 5 分 K（`range=60d&interval=5m`），免費、非官方、可能延遲 |
+| `trader/timemachine.json` | 加 `--write` 才寫：`{plan, mc, history}` 加上結論。`mc` 有機率、百分位數、成本、漲跌停、扇形圖的帶狀區間、160 條樣本路徑和收盤價的 24 格直方圖 |
 
-## How it works
+計畫缺台股欄位也能跑：沒有漲跌停，就用 plan 的昨收算（上下 10%，槓桿 ETF 20%），
+再沒有就用 Yahoo 的昨收或前一個交易日最後一根 5 分 K；沒有成本，就用設定檔的手續費
+算。每一個補上的數字都會在「注意」那幾行說清楚是怎麼來的。
 
-1. **The pool.** It keeps only FULL sessions before the plan's date: all 78
-   five-minute bars, 9:30 to 4:00 New York time. Half days, gaps and today
-   are left out. Every bar becomes four ratios to the bar before it:
-   open, high, low and close over the previous close.
-2. **One replay.** Start at the entry price. For each bar left in the day,
-   pick a past bar from the same time of day (plus or minus 2 bars) at
-   random, and scale it to the current price. Bar by bar, it checks the stop
-   first, then the target. A bar that touches both counts as the stop.
-3. **10,000 replays** give four odds. Target first. Stop first. Neither,
-   which means the trade was still open at `--until` (default 4:00 PM, the
-   close, or 1:00 PM on an NYSE early-close day). Green, which means target
-   first or above the entry at `--until`.
-   R is +1 at a 1R target, -1 at the stop, and otherwise the distance from
-   the entry at `--until` divided by the risk. A gap through the stop still
-   counts as -1R here. A real fill can be worse.
-4. **The history.** The plan's own rule (the same opening range, stop rule
-   and target R) runs again on every one of those past sessions. That is
-   what really happened, not a simulation.
-5. **The verdict** is one line from the numbers. It looks only at the
-   replays that hit one side, and asks how often the target came first. A
-   bigger target needs to win less often to break even: 1 in (1 + R). That
-   is 50 % at 1R, 33 % at 2R, 25 % at 3R. Less than 5 points from break-even:
-   "Close to a coin flip" at 1R, "Close to break-even" at any other R. 5 to
-   15 points: "Leans toward the target" or "Leans toward the stop". 15 or
-   more: "Strongly toward" one of them. So a 2R plan with target first
-   24.1 % and stop first 50.5 % is close to break-even (it needs 33 % of
-   the 74.6 % that hit a side, and got 32 %), not a loser.
-6. **Below the verdict**, when it applies: a line when more than 40 % of the
-   replays hit neither (the price at `--until` decides those), and the
-   average R when its sign goes against the lean. Those can only point the
-   other way because of the replays that hit neither.
+## 怎麼運作
 
-**The seed.** The draws come from Python's `random.Random(seed)`, seed 19 by
-default. Same plan, same data, same seed: the same numbers, on any machine.
-Say the seed with every result so the user can repeat it.
+1. **重播池。** 只留計畫日期之前的完整交易日：連續交易的 53 根 5 分 K 全部都在
+   （09:00 到 13:20 開始的 K 棒，台北時間）。13:25 那根在 Yahoo 是空的（13:25 到
+   13:30 是收盤集合競價），當天另外多一筆 13:30 的收盤價：這兩個都不算，所以收盤
+   集合競價沒有模擬。缺 K 棒的日子和今天都不放進去。颱風臨時休市的日子，Yahoo 會
+   留一整天空白的 K 棒（例如 2026-10-23 薔琵颱風），它會被列在「略過休市日」那一行；
+   其他缺 K 棒的日子（停牌、資料缺漏）列在「略過 N 個 K 棒不完整的交易日」。
+   每一根 K 棒變成相對於前一根收盤的四個比例：開、高、低、收。
+2. **一次重播。** 從進場價開始。當天剩下的每一根，都從過去同一時段（前後 2 根）
+   隨機抽一根，按目前的價格縮放。高、低、收都夾在當天的漲停和跌停之間，所以重播
+   不會走出台股一天能走的範圍。每一根先檢查停損，再檢查停利；同一根碰到兩邊，算停損。
+3. **10,000 次重播**給出四個機率：先到停利、先到停損、都沒碰到（到 `--until` 還沒
+   出場，預設 13:25，連續交易結束）、站上進場價（先到停利，或 `--until` 時高於進場價）。
+   R：停利是 +k（1R 停利就是 +1），停損是 -1，其他是 `--until` 時離進場價的距離除以
+   每股風險。跳空穿過停損這裡還是算 -1R，真的成交可能更差。
+4. **成本。** 每一次重播都是一買一賣：手續費兩次（0.1425%，乘上你的折扣）加上當沖
+   證交稅 0.15%（減半實施到 2027-12-31），換成 R 就是 c = 每股成本 / 每股風險。
+   扣成本的 R = R - c。
+5. **歷史。** 計畫自己的規則（同樣的開盤區間、停損規則、停利 R，價格都對齊升降單位）
+   在每一個過去的完整交易日重跑一次，也扣成本。這是真的發生過的事，不是模擬。
+6. **結論**是從數字來的一句話。它只看碰到停利或停損的那些重播，問停利先到的比例是
+   多少。停利 k R、成本 c R 時，打平要的比例是 **(1 + c) / (1 + k)**：
+   沒有成本時 1R 要 50%、2R 要 33%；聯電這筆 1R、成本 0.32R，要 (1 + 0.32) / 2 = 66%。
+   差距不到 5 個百分點：1R 而且沒成本叫「接近擲硬幣」，其他叫「接近損益兩平」。
+   5 到 15 點：「偏向停利」或「偏向停損」。15 點以上：「明顯偏向停利」或「明顯偏向停損」。
+7. **結論下面**，有需要才印：超過 40% 的重播兩邊都沒碰到時說一行（那些由 `--until`
+   的價格決定），以及扣成本的平均 R 方向和結論相反時說一行。
 
-**5-minute bars only.** Yahoo keeps 60 days of 5-min bars but only about 7
-days of 1-min bars, too few sessions for a fair pool. It refuses, in one
-plain line, when there are fewer than 20 full sessions, when the entry bar is
-not in the data (wrong date, not closed yet, a future day), or when the plan
-does not make sense (a stop above a buy's entry, an entry off the 5-minute
-grid). A live in-progress bar is never used.
+**種子。** 亂數來自 Python 的 `random.Random(seed)`，預設 19。同一份計畫、同一份資料、
+同一個種子，在任何電腦上都是同樣的數字。每次結果都要說出種子，讓使用者可以重跑。
 
-## Steps
+**只用 5 分 K。** Yahoo 保留 60 天的 5 分 K，1 分 K 只有大約 7 天，交易日太少，重播池
+不公平。完整交易日少於 20 個、資料裡沒有進場那根 K 棒（日期錯、還沒收完、休市）、
+或計畫本身不合理（做多停損高於進場、進場不在 5 分鐘格線上）都會用一行說明拒絕。
+還沒收完的 K 棒永遠不用。如果這檔股票最近被列為處置股，那段期間是每幾分鐘才撮合
+一次，K 棒和平常不一樣，重播池會被它拉偏：先用 /trader-news 或證交所公告確認。
 
-1. Make sure `trader/plan.json` is today's plan from `/trader-exit`. If there
-   is none, run that first, or pass the plan as flags.
-2. Run `timemachine.py run --write`. Add `--until 15:55` when the plan has a
-   flat-by time, so "neither" means still open at the time you would get out.
-3. Tell the user, in this order: the four odds, the median and the 5 to 95
-   range of the price at the close, the average R, the history line, then the
-   verdict line and any line under it exactly as printed. Say the seed.
-4. If the verdict is a coin flip or close to break-even, say so plainly. Do
-   not dress it up. If the history and the replays disagree, say that too.
-5. Say once that this is built from the last 60 days and is not a prediction.
-   Earnings, news and halts can do things those 60 days never did. Check
-   `/trader-news` for the stock before going on.
-6. If the user still wants the trade, hand off to `/trader-budget` to size it.
+## 步驟
 
-## Example: the reel
+1. 確認 `trader/plan.json` 是今天 `/trader-exit` 寫的。沒有的話先跑它，或用參數直接給計畫。
+2. 跑 `timemachine.py run --until 13:20 --write`（13:20 是計畫的 flat_by，這樣「都沒碰到」
+   就代表到你該出場的時候還沒出場）。計畫有別的 flat_by 就用那個時間。
+3. 照這個順序告訴使用者：四個機率、`--until` 價格的中位數和 5% 到 95% 區間、平均 R
+   （扣成本前後）、成本是幾 R、歷史那一行，然後原樣說出結論那一行和它下面的行。說出種子。
+4. 結論是擲硬幣、損益兩平或偏向停損，就直接說，不要包裝。特別說明成本：台股當沖的
+   來回成本常常吃掉 0.2R 到 0.4R，停損越近吃越多。歷史和重播不一致時也要說。
+5. 說一次：這是用最近 60 天做的，不是預測。新聞、處置、漲停或跌停鎖死，都可能做出
+   這 60 天沒發生過的事。繼續之前先看 `/trader-news`。
+6. 提醒：這份計畫假設整股現股當沖。零股目前不能現股當沖，今天買的零股最快下一個
+   交易日才能賣，停損和 flat_by 那天都做不到。
+7. 使用者還是想做，就交給 `/trader-budget` 算股數。
 
-TSLA, Monday 2026-10-19. The 15-minute opening range is 354.47 to 362.18.
-The 10:10 bar closes above it: entry 364.18 at 10:15 AM (bar 8), stop 358.32
-(the range midpoint, rounded down), target 370.04 (1R, risk 5.86 a share).
+## 範例：聯電 2026-11-02
+
+聯電 2303，2026-11-02（一）。15 分鐘開盤區間 107.5 到 109.5。09:15 那根收在 110.0，
+站上區間高點：09:20 進場 110.0（第 3 根），停損 108.5（區間中點，剛好在升降單位上），
+停利 111.5（1R，每股風險 1.5，只有 3 檔）。昨收 111.5，漲停 122.5、跌停 100.5（MIS）。
+成本每股 110.0 x (0.1425% x 2 + 0.15%) = 0.4785，是 0.32R。
 
 ```
-10,000 replays of the rest of the session, 10:15 AM to 4:00 PM (69 five-minute bars), seed 19.
-  target first   29.4 %
-  stop first     25.5 %
-  neither        45.1 %   still open at 4:00 PM
-  green          51.7 %   target first, or above the entry at 4:00 PM
-  Price at 4:00 PM: median 364.36, 90 % of replays between 355.54 and 373.54.
-  Average R: +0.034
-History: the same rule on each of those 59 real sessions fired 33 times:
-13 target, 15 stop, 5 neither. Average R -0.062.
-Close to a coin flip: target first 29.4 % vs stop first 25.5 %.
-45.1 % of the replays hit neither by 4:00 PM; the price at 4:00 PM decides those.
+聯電 2303 做多，2026-11-02（一）：進場 110.0（09:20，第 3 根），停損 108.5，停利 111.5（1R，每股風險 1.5，3 檔）。
+重播當天剩下的盤 10,000 次：09:20 到 13:20（48 根 5 分 K），亂數種子 19。
+每一根都整根抽自聯電 2303 過去 58 個完整交易日（2026-08-05 到 2026-10-30）同一時段（前後 2 根）的 5 分 K。
+每一根重播都夾在漲停 122.5 和跌停 100.5 之間。
+成本：每股約 0.48（手續費買賣各一次，加當沖證交稅），是 0.32R。
+
+  先到停利   43.9%
+  先到停損   55.7%
+  都沒碰到   0.4%    13:20 還沒出場
+  站上進場價 44.1%   先到停利，或 13:20 時高於進場價
+
+  13:20 的價格：中位數 109.74，90% 的重播在 104.88 到 114.93 之間。
+  平均 R：-0.119，扣成本 -0.438（R 是每股風險：停利 +1R，停損 -1R）。
+  0.01% 的重播碰到漲停，0.22% 碰到跌停。
+
+歷史：同一條規則（15 分鐘開盤區間、停損在開盤區間中點、1R 停利）在這 58 個真實交易日觸發 25 次：停利 7、停損 9、都沒碰到 9。平均 R -0.158，扣成本 -0.447。
+
+明顯偏向停損：1R 加上成本 0.32R 時，碰到停利或停損的重播裡，停利要先到 66% 才打平；實際是 44%（先到停利 43.9% 對先到停損 55.7%）。
+
+略過休市日：2026-10-23（薔琵颱風，台北市停班，全日休市）。
 ```
 
-At 1R the target has to come first in half of the replays that hit one
-side. It did in 53.6 %. The replays came out close to a coin flip, and the
-real history was slightly worse than even. That is the honest answer for this setup, and it is what
-the user should hear before `/trader-budget` sizes 8 shares.
+不加 `--until`（重播到 13:25）：先到停利 43.0%、先到停損 56.5%、都沒碰到 0.4%、站上
+進場價 43.2%，13:25 的價格中位數 109.68（90% 在 104.70 到 114.92），平均 R -0.135，
+扣成本 -0.454；歷史一樣觸發 25 次（停利 7、停損 9、都沒碰到 9），平均 R -0.142，扣成本
+-0.431；結論一樣是「明顯偏向停損」（實際 43%，要 66%）。
 
-## Rules
+風險只有 3 檔，所以停損很容易被正常跳動掃到，而來回成本又吃掉三分之一個 R。不算成本，
+43.9% 對 55.7% 只是「偏向停損」；算進成本，打平門檻從 50% 拉到 66%，就是「明顯偏向
+停損」。真實的那天，09:40 那根的低點 108.5 碰到了停損。這就是 `/trader-budget` 算股數
+之前，使用者應該先聽到的答案。
 
-- Every number comes from the run. Never round a coin flip up into an edge.
-- The verdict line and the lines under it are printed by the tool. Repeat
-  them, do not rewrite them. Never judge a 2R or 3R plan by target first vs
-  stop first alone: the verdict already weighs the target's R.
-- Simulated odds are not predictions and not promises. Say it once, plainly.
-- Free Yahoo data is unofficial and can lag. Bars are 5-minute bars, checked
-  bar by bar, never tick by tick and never real time.
-- Always say the seed, so any run can be repeated.
-- One plan per run. A changed entry, stop, target or date is a new run.
+## 規則
 
-## What it never does
+- 每個數字都來自這次執行。不要把擲硬幣講成優勢。
+- 結論那一行和它下面的行是工具印的，原樣轉述，不要改寫。不要只看先到停利對先到停損
+  就判斷 2R、3R 或有成本的計畫：結論已經算進停利的 R 和成本。
+- 模擬的機率不是預測，也不是承諾。說一次，說清楚。
+- Yahoo 的免費資料是非官方的，可能延遲。這裡用的是 5 分 K，一根一根檢查，不是逐筆，也不是即時。
+- 一定要說出種子，讓任何一次執行都能重跑。
+- 一份計畫跑一次。進場、停損、停利或日期改了，就是新的一次。
 
-It never places an order, never sizes a position, never changes the plan,
-and never calls a result a sure thing. It never prints a P&L or a profit.
-It never uses a bar that has not closed yet, and never mixes today's bars
-into the pool.
+## 不做的事
 
-## Safety
+不下單、不算股數、不改計畫，也不把任何結果說成穩贏。不印損益或報酬。不用還沒收完的
+K 棒，也不把今天的 K 棒混進重播池。
 
-- Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+## 安全
+
+- 這是教學與工具，不構成投資建議。PASS 只代表通過規則檢查，不是推薦。
+- 預設模擬交易（`"paper": true`）。要不要動用真錢，由使用者自己在自己的設定檔決定。
+- 這套 skill 不會自己下單。只有 trader-broker 會產生委託單，而且三件事都成立才會：trader-risk 今天通過了這一張單、使用者在對話中針對這一張單明確回覆 yes、使用者自己在券商 App 或下單軟體送出。
+- 不做融資、融券、先賣後買、選擇權或期貨，除非設定檔開啟而且使用者確認。
+- 券商帳號、密碼和憑證不在對話裡出現，也不寫進任何檔案。
