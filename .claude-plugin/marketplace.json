@@ -1,18 +1,18 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "day-trader-skill",
-  "description": "The Day Trader skill pack for Claude: the Trader skill v2",
+  "name": "day-trader-skill-tw",
+  "description": "台股當沖 skill 組：The Day Trader skill 的台股版",
   "owner": {
-    "name": "Jake Schincariol",
-    "url": "https://opusjake.ai"
+    "name": "eric861129",
+    "url": "https://github.com/eric861129"
   },
   "plugins": [
     {
-      "name": "day-trader-skill",
-      "description": "Eleven Claude skills for day trading: a chart scanner, a news monitor, an entry timer, an exit planner, a time machine that replays 10,000 sessions, a risk manager, a budget manager, an order executor (paper by default, never without your yes), price alerts, an earnings analyst and a Pelosi tracker.",
+      "name": "day-trader-skill-tw",
+      "description": "十一個台股當沖 Claude skill：掃盤、新聞與重大訊息、進場時機、出場計畫、重播一萬次盤的時光機、風險管理、部位管理（張數含手續費和證交稅）、委託單（預設模擬，你說 yes 並自己在券商 App 送出才會成交）、到價提醒、財報分析和三大法人追蹤。",
       "source": "./",
       "category": "productivity",
-      "homepage": "https://github.com/Jakeschincariol/day-trader-skill"
+      "homepage": "https://github.com/eric861129/day-trader-skill-TW"
     }
   ]
 }

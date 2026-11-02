@@ -5,18 +5,20 @@ import unittest
 
 from _load import ROOT
 
-# v2, the day-trading pack: the eleven folders the reel's repo card shows
+# the Taiwan day-trading pack: the eleven folders (trader-institutional replaced the US Pelosi tracker)
 SKILLS = ["trader-scanner", "trader-news", "trader-entry", "trader-exit", "trader-timemachine",
           "trader-risk", "trader-budget", "trader-broker", "trader-alerts", "trader-analyst",
-          "trader-pelosi"]
-ABOUT = ("11 Claude skills for day trading: scan thousands of charts, track breaking news, time every "
-         "entry and exit, and replay every outcome before you risk a dollar.")
+          "trader-institutional"]
+ABOUT = "11 個台股當沖 Claude skill：掃描上千檔線圖、追蹤新聞和重大訊息、抓準每一次進場和出場，並在動用真錢之前先重播每一種結果。"
+REPO = "eric861129/day-trader-skill-TW"
+PLUGIN = "day-trader-skill-tw"
 # skills on the way to an order carry the safety block
 ORDER_PATH = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine", "trader-budget",
-              "trader-pelosi", "trader-risk", "trader-broker", "trader-alerts"]
-# converted to the Taiwan market so far: Chinese SKILL.md, tools on twmarket.py
-TW_SKILLS = ["trader-scanner", "trader-news", "trader-entry", "trader-exit", "trader-timemachine",
-             "trader-budget", "trader-risk", "trader-broker", "trader-alerts", "trader-analyst"]
+              "trader-institutional", "trader-risk", "trader-broker", "trader-alerts"]
+# every skill runs on the Taiwan market: Chinese SKILL.md, tools on twmarket.py
+TW_SKILLS = SKILLS
+# what the US pack used and the Taiwan pack must not: New York time, US data sources, the Alpaca order tool
+US_ONLY = ("eastern_offset", "NYSE", "New York", "sec.gov", "EDGAR", "Alpaca", "place_stock_order", "stooq")
 V1_ONLY = ["trader-copycat", "trader-screener", "trader-tax", "trader-rebalance"]
 
 
@@ -57,7 +59,7 @@ class Repo(unittest.TestCase):
         for s in ORDER_PATH:
             _, text = frontmatter(os.path.join(ROOT, s, "SKILL.md"))
             low = " ".join(text.lower().split())
-            self.assertIn("不構成投資建議" if s in TW_SKILLS else "not financial advice", low, s)
+            self.assertIn("不構成投資建議", low, s)
             self.assertIn("yes", low, s)
 
     def test_tw_skills_run_on_the_taiwan_core(self):
@@ -69,31 +71,35 @@ class Repo(unittest.TestCase):
                 with open(os.path.join(folder, f), encoding="utf-8") as fh:
                     src = fh.read()
                 self.assertIn("import twmarket", src, "%s/%s" % (s, f))
-                self.assertNotIn("eastern_offset", src, "%s/%s still keeps New York time" % (s, f))
-                self.assertNotIn("NYSE_HOLIDAYS", src, "%s/%s still keeps the NYSE calendar" % (s, f))
+                for old in US_ONLY:
+                    self.assertNotIn(old, src, "%s/%s still has the US pack's %s" % (s, f, old))
             _, text = frontmatter(os.path.join(folder, "SKILL.md"))
             self.assertIn("## 安全", text, s)
+            for old in US_ONLY:
+                self.assertNotIn(old, text, "%s/SKILL.md still has the US pack's %s" % (s, old))
 
     def test_plugin_manifest_points_at_the_root_skills(self):
-        with open(os.path.join(ROOT, ".claude-plugin", "plugin.json")) as fh:
+        with open(os.path.join(ROOT, ".claude-plugin", "plugin.json"), encoding="utf-8") as fh:
             plugin = json.load(fh)
-        self.assertEqual(plugin["name"], "day-trader-skill")
+        self.assertEqual(plugin["name"], PLUGIN)
         self.assertEqual(plugin["skills"], "./")
         self.assertEqual(plugin["description"], ABOUT)
-        with open(os.path.join(ROOT, ".claude-plugin", "marketplace.json")) as fh:
+        self.assertEqual(plugin["repository"], "https://github.com/" + REPO)
+        with open(os.path.join(ROOT, ".claude-plugin", "marketplace.json"), encoding="utf-8") as fh:
             market = json.load(fh)
-        self.assertEqual(market["name"], "day-trader-skill")
-        self.assertEqual(market["plugins"][0]["name"], "day-trader-skill")
+        self.assertEqual(market["name"], PLUGIN)
+        self.assertEqual(market["plugins"][0]["name"], PLUGIN)
 
     def test_readme_carries_the_reel_copy(self):
         with open(os.path.join(ROOT, "README.md"), encoding="utf-8") as fh:
             readme = " ".join(fh.read().split())
-        self.assertTrue(readme.startswith("# The Day Trader skill"))
+        self.assertTrue(readme.startswith("# 台股當沖 skill"))
         for line in (ABOUT,
-                     "https://github.com/Jakeschincariol/day-trader-skill install skill",
-                     "/plugin marketplace add Jakeschincariol/day-trader-skill",
-                     "/plugin install day-trader-skill@day-trader-skill",
-                     "## Fine print"):
+                     "https://github.com/%s install skill" % REPO,
+                     "/plugin marketplace add %s" % REPO,
+                     "/plugin install %s@%s" % (PLUGIN, PLUGIN),
+                     "## 注意事項",
+                     "https://github.com/Jakeschincariol/day-trader-skill"):   # credit to the original
             self.assertIn(line, readme)
         for s in SKILLS:
             self.assertIn("/" + s, readme, s)
