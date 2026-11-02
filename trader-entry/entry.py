@@ -179,7 +179,7 @@ def chart_range(day, today, interval):
 
 def _open_url(url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": tw.UA, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with tw.urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8", "replace")
 
 

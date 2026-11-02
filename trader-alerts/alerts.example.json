@@ -1,9 +1,10 @@
 {
   "rules": [
     {"id": "opening-bell", "type": "opening_bell"},
-    {"id": "tsla-plan-stop", "symbol": "TSLA", "type": "stop", "price": 358.32, "note": "plan stop: opening-range midpoint", "date": "2026-10-19"},
-    {"id": "tsla-plan-target", "symbol": "TSLA", "type": "target", "price": 370.04, "note": "plan target: 1R (one times the risk)", "date": "2026-10-19"},
-    {"id": "tsla-flat-by", "symbol": "TSLA", "type": "time", "at": "15:55", "label": "flat by close", "before_close": true, "date": "2026-10-19"},
-    {"id": "tsla-move-3", "symbol": "TSLA", "type": "pct_move", "pct": 3}
+    {"id": "2303-plan-stop", "symbol": "2303", "name": "聯電", "type": "stop", "price": 108.5, "note": "計畫停損：開盤區間中點", "date": "2026-11-02"},
+    {"id": "2303-plan-target", "symbol": "2303", "name": "聯電", "type": "target", "price": 111.5, "note": "計畫停利：1R（一倍風險）", "date": "2026-11-02"},
+    {"id": "2303-flat-by", "symbol": "2303", "name": "聯電", "type": "time", "at": "13:20", "label": "13:20 前出清", "date": "2026-11-02"},
+    {"id": "2303-limit-down", "symbol": "2303", "name": "聯電", "type": "limit_down", "date": "2026-11-02"},
+    {"id": "0050-pct-move-3", "symbol": "0050", "type": "pct_move", "pct": 3}
   ]
 }

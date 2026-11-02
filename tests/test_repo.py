@@ -15,8 +15,8 @@ ABOUT = ("11 Claude skills for day trading: scan thousands of charts, track brea
 ORDER_PATH = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine", "trader-budget",
               "trader-pelosi", "trader-risk", "trader-broker", "trader-alerts"]
 # converted to the Taiwan market so far: Chinese SKILL.md, tools on twmarket.py
-TW_SKILLS = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine", "trader-budget",
-             "trader-risk", "trader-broker"]
+TW_SKILLS = ["trader-scanner", "trader-news", "trader-entry", "trader-exit", "trader-timemachine",
+             "trader-budget", "trader-risk", "trader-broker", "trader-alerts", "trader-analyst"]
 V1_ONLY = ["trader-copycat", "trader-screener", "trader-tax", "trader-rebalance"]
 
 

@@ -1,0 +1,1909 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+<title>公開資訊觀測站</title>
+
+
+
+<link href="css/css2.css" rel="stylesheet" type="text/css" />
+<link href="css/clickmenu1.css"rel="stylesheet" type="text/css"/>
+
+
+<link href="css/print_css1.css" rel="stylesheet" type="text/css" Media="Print"/>
+
+ 
+ 
+ 
+<!--
+<link href="css/tag.css" rel="stylesheet" type="text/css" />
+<link href="css/tablea.css" rel="stylesheet" type="text/css" />
+<script type="text/javascript" language="JavaScript1.2" src="js/menu/stmenu.js"></script>
+-->
+<!-- 2021.09.07 start 拿掉舊插件  -->
+<!-- <script type="text/javascript" src="js/jquery-1.1.4.pack.js"></script>
+<script type="text/javascript" src="js/jquery.clickmenu.js"></script> -->
+<!-- 2021.09.07 end 拿掉舊插件  -->
+<!-- 2021.09.07 start -->
+<script type="text/javascript" src="js/jquery-3.6.0.min.js"></script>
+
+
+<script type="text/javascript" src="js/mops2.js"></script>
+
+<!-- 2021.09.07 end -->
+
+
+
+
+</head>
+<body>
+<center>
+<table border="0"><tr><td align="left">
+
+
+<form name='fh' style='margin:0;' action='/mops/web/ajax_autoComplete' method='post' onsubmit='return false;'><input type='hidden' name='firstin' id='firstin' value = '1'><input type='hidden' name='TYPEK' id='TYPEK' value = 'all'><input type='hidden' name='step' id='step' value = '1'><input type='hidden' name='co_id' value = ''><input type='hidden' name = 'funcName' value = 't05sr01_1'><input type='hidden' name='searchtype' id='searchtype' value = ''><input type='hidden' name='inpuType' id='inpuType' value = 'keyword'><input type='hidden' name='auto-more' id='auto-more' value = ''><input type = 'hidden' name = 'keycon' value = ''><div id='head'><div id='head_02'><a href='/mops/web/index' alt='回首頁'><img src='images/blank.gif' width='232' height='52' border='0'></a></div><div id='head_03'><div id='search_bar'><div id='nav'><a style='color:yellow;text-decoration:none;'>全站搜尋</a></div><div id='search_b1' align='left'><table><tr><td align='left'><input name='keyword' type='text' class='textbox' id='keyword' size='45' oninput="document.getElementById('auto-more').value='';autoComplete(this.form , 'keyword' , 'auto-complete-data' , event);" onkeydown='chkKeyDown(this.form , this , "auto-complete-data" , event);' onkeyUp="document.getElementById('auto-more').value='';autoComplete(this.form , 'keyword' , 'auto-complete-data' , event);" onblur="setTimeout(function(){hideDiv('auto-complete-data');} , 200);" onClick="this.value='';document.getElementById('oldKeyWord').value='';hideDiv('auto-complete-data');" placeholder='請輸入公司代號、簡稱，或報表關鍵字' autocomplete='off'></td><td><input type='button' name='rulesubmit' id='rulesubmit' value=' 搜尋 ' onclick="document.fh.action='/mops/web/autoAction';document.fh.submit();"></td></tr></table></div><div id='search_txt' class='search_b2' style='z-index:1;'><table border='0'><tr><td><div style='background-image: url(images/map01.jpg) ; height: 19px; width:32px;background-position:-161px 0px;'></div></td><td><a href='javascript:void(0);' onClick='document.fh.keyword.value="營收";goaction("營收" , "0");'>營收</a><a href='javascript:void(0);' onClick='document.fh.keyword.value="除權息";goaction("除權息" , "0");'>除權息</a><a href='javascript:void(0);' onClick='document.fh.keyword.value="電子書";goaction("電子書" , "0");'>電子書</a><a href='javascript:void(0);' onClick='document.fh.keyword.value="法說會";goaction("法說會" , "0");'>法說會</a><a href='javascript:void(0);' onClick='document.fh.keyword.value="庫藏股";goaction("庫藏股" , "0");'>庫藏股</a><a href='javascript:void(0);' onClick='document.fh.keyword.value="董監持股";goaction("董監持股" , "0");'>董監持股</a><a href='javascript:void(0);' onClick='document.fh.keyword.value="獨立董事";goaction("獨立董事" , "0");'>獨立董事</a><a href='javascript:void(0);' onClick='document.fh.keyword.value="董監酬金";goaction("董監酬金" , "0");'>董監酬金</a><a href='javascript:void(0);' onClick='document.fh.keyword.value="ETF";goaction("ETF" , "0");'>ETF</a><a href='javascript:void(0);' onClick='document.fh.keyword.value="TDR";goaction("TDR" , "0");'>TDR</a></td></tr></table></div></div></div><div id='head_04'><a href='http://emops.twse.com.tw/emops_all.htm'><img src='images/blank.gif' width='89' height='32' border='0' /></a><p style='margin-left:11px;'><a href='/mops/web/ezsearch'><img src='images/blank.png' border='0'></a></p></div></div></form><input type='hidden' id='oldKeyWord'><div id='auto-complete-data'></div><div id='auto-complete-data2'></div><form name='fh2' style='margin:0;' action='' method='post' onsubmit='return false;'><input type='hidden' name='usually' id='usually' value = ''></form><script>window.onload=getMsg;    var MAR = document.querySelector("#marquee");     if(MAR){         var MARS = document.querySelectorAll("#marquee a");         for(var i=0;i<MARS.length;i++){             MARS[i].setAttribute("target","_blank");             MARS[i].setAttribute("style","margin-right:20px");         };         if(MARS.length<1){             MAR.parentNode.innerHTML = "<span style='color:#ff0;'>全站搜尋</span>";             MAR.setAttribute("scrollamount","0")         };     };</script><style>    #marquee,#marquee a{color: #ff0!important;}    #marquee a:hover{color: #ff0!important;text-decoration: none!important;}    #marquee a[href]{text-decoration: underline!important;}</style> 
+
+
+
+
+<div id="menu" class="clickMenu">
+	<table width="100%" border="0" cellspacing="0" cellpadding="0">
+		<!-- 2021.09.07 start -->
+		<!-- <script>
+			$(document).ready(function() {
+			
+				$('#list').clickMenu();
+				document.getElementById('list').style.display='block';
+			});
+		</script> -->
+		<!-- 2021.09.07 end  -->
+		<tr>
+			<td id="menu1">
+				<ul id="list" style="display:none;">
+					<li class = "L00_Pop" id="mm0">常用報表
+					</li>
+					<li class = "L00_Pop" id="mm1">基本資料
+					</li>
+					<li class = "L00_Pop" id="mm2">彙總報表
+					</li>
+					<li class = "L00_Pop" id="mm3">股東會及股利
+					</li>
+					<li class = "L00_Pop" id="mm4">公司治理
+					</li>
+					<li class = "L00_Pop" id="mm5">財務報表
+					</li>
+					<li class = "L00_Pop" id="mm6">重大訊息與公告
+					</li>
+					<li class = "L00_Pop" id="mm7">營運概況
+					</li>
+					<li class = "L00_Pop" id="mm8">投資專區
+					</li>
+					<li class = "L00_Pop" id="mm9">認購（售）權證
+					</li>
+					<li class = "L00_Pop" id="mm10">債券
+					</li>
+					<li class = "L00_Pop" id="mm11">資產證券化
+					</li>
+
+				</ul>
+			</td>
+		</tr>
+	</table>
+</div>
+
+
+
+
+
+
+<div id="maincontent_in">
+<table width="100%" border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td >
+<div id="PageBody">
+<table><tr><td valign="top" style="height:400px">
+<div id="main" >
+
+
+
+<!--  
+	程式名稱:submenu-6.htm
+	程式功能:submenu-6.htm
+	修改紀錄:(格式=>西元日期+版次+程式設計師)
+	2026040810thomas:(T88J)修改反詐騙連結
+	2024080612thomas:(T88K)新增 t179sb01
+	2024071012thomas:(T88G)新增 t179sb01
+	201909271.1:hsin(T88K)重大訊息合併上市/第一/第二上市櫃，調整即時重大訊息t05sr01_1與重大訊息綜合查詢
+	201909271.1:hsin(T88G)重大訊息合併上市/第一/第二上市櫃，調整即時重大訊息t05sr01_1與重大訊息綜合查詢
+
+	 -->
+<table width="176" border="0" cellpadding="0" cellspacing="0">
+<tr>
+	<td width="176">
+		<span style="cursor: pointer; font-weight: bold; font-size: 13px;" onclick="showhide('level6','img-6')" id="menu1">
+			<img src="images/minus4.gif" id="img-6"/>
+				<a href="#">重大訊息與公告</a>
+		</span>
+	</td>
+</tr>
+<tr style="display: inline;" id="level6">
+	<td style="padding-left: 10px;">
+		<img src="images/pointer.gif"/><a href="t05sr01_1">即時重大訊息</a><br/>
+			
+		<img src="images/minus3.gif" id="img-6001"/><a onclick="showhide('level-6001','img-6001')" target="_self" href="#">重大訊息綜合查詢</a><br/>
+			<span style="display: none;" id="level-6001">
+				<span style="padding-left: 15px;">
+					<img src="images/pointer.gif"/><a target="_self" href="t05st02">當日重大訊息</a><br/>
+				</span>
+				<span style="padding-left: 15px;">
+					<img src="images/pointer.gif"/><a target="_self" 
+					href="t05st01">歷史重大訊息</a><br/>
+
+				</span>
+				<span style="padding-left: 15px;">
+					<img src="images/pointer.gif"/><a target="_self" href="t51sb10_q1">重大訊息主旨全文檢索</a><br/>
+				</span>
+			</span>
+
+		<img src="images/pointer.gif"/><a href="t132sb12">臺灣存託憑證收盤價彙總<br/><span style="padding-left: 15px;">表</span></a><br/>
+			
+		<img src="images/pointer.gif"/><a href="t100sb07_1">法說會</a><br/>
+
+		<img src="images/pointer.gif"/><a href="t146sb10">公告查詢</a><br/>
+
+		<img src="images/pointer.gif"/><a href="t178sb01">券商對媒體轉載之澄清或<br/><span style="padding-left: 15px;">說明</span></a><br/>
+
+		<img src="images/pointer.gif"/><a href="https://cam.twse.com.tw/antifraud"  target="_blank">反詐騙聯防行動專區查詢<br/></a><br/>
+
+	</td>
+</tr>
+</table>
+
+
+</div>
+</td><td valign="top">
+
+<div id='sw'><div id='pic' style="cursor: hand; background: url(images/map2.gif) no-repeat scroll 0% 0%; -moz-background-clip: border; -moz-background-origin: padding; -moz-background-inline-policy: continuous; height: 324px; width:14px;background-position:-542px 0px;" onclick="closex();"></div></div>
+</td><td valign="top">
+<div id="nav02">
+
+
+
+<input type="hidden" id="subMenuID" value="6">
+
+
+
+<div class="t0"></div>
+
+
+<div class="t01" id='caption'><br>&nbsp;&nbsp;&nbsp;即時重大訊息</div>
+
+<div id="zoom"><div id="table02" style='overflow:auto;'></div>
+
+<div id="table_ess">
+  <table border="0" cellspacing="0" cellpadding="2">
+    <tr>
+      
+	  
+	  <th align="left" width="80px"><a href="javascript:print();"><img src="images/bu_01.gif" alt="列印網頁" border=0></img></a></th><th width="80px"><a href="javascript:outputNewWindow();"><img src="images/bu_02.gif" alt="開新視窗" border=0></img></a></th><th width="80px"><a href="javascript:reportError();"><img src="images/bu_04.gif" alt="問題回報" border=0></img></a></th><th width="80px"><a id='ajax_back_button' href="javascript:void(0)" onclick="ajax_back();" style="visibility:hidden;"></a></th>
+      <th><table border="0" cellspacing="0" cellpadding="0">
+        <tr>
+           
+		  <td width="900px"></td>
+        </tr>
+      </table></th>
+    </tr>
+  </table>
+  </div>
+  
+
+
+<div id="zoom01"><div id="table01"><form name='fm_t05sr01_1_1' action='/mops/web/ajax_t05sr01_1' method='post' onsubmit='return false;'>
+<input type='hidden' name='TYPEK' value='all'>
+<input type='hidden' name='step' value='0'>
+<table class='noBorder' align='center'><tr>
+<td colspan='5' align='center' class='compName'>市場別：全體公司</td></tr><tr>
+<td><input type='button' value='全體公司' onclick="document.fm_t05sr01_1_1.TYPEK.value='all';ajax1(this.form,'table01');"></td>
+<td><input type='button' value='上市公司' onclick="document.fm_t05sr01_1_1.TYPEK.value='sii';ajax1(this.form,'table01');"></td>
+<td><input type='button' value='上櫃公司' onclick="document.fm_t05sr01_1_1.TYPEK.value='otc';ajax1(this.form,'table01');"></td>
+<td><input type='button' value='興櫃公司' onclick="document.fm_t05sr01_1_1.TYPEK.value='rotc';ajax1(this.form,'table01');"></td>
+<td><input type='button' value='公開發行公司' onclick="document.fm_t05sr01_1_1.TYPEK.value='pub';ajax1(this.form,'table01');"></td>
+</tr></table></form>
+<form name='fm_t05sr01_1' action='/mops/web/ajax_t05sr01_1' method='post' onsubmit='return false;'>
+<input type='hidden' name='TYPEK' value='all'>
+<input type='hidden' name='step' value='1'>
+<input type='hidden' name='skey'>
+<input type='hidden' name='hhc_co_name'>
+<input type='hidden' name='firstin' value='true'>
+<input type='hidden' name='COMPANY_ID'>
+<input type='hidden' name='COMPANY_NAME'>
+<input type='hidden' name='SPOKE_DATE'>
+<input type='hidden' name='SPOKE_TIME'>
+<input type='hidden' name='SEQ_NO'>
+<table class='hasBorder' align='center' border=1>
+<tr class='tblHead'>
+<th nowrap>公司代號</th>
+<th nowrap>公司簡稱</th>
+<th nowrap>發言日期</th>
+<th nowrap>發言時間</th>
+<th nowrap>主旨</th>
+<th nowrap>&nbsp;</th>
+</tr>
+<tr class='even'>
+<td>7971</td>
+<td style='text-align:left !important;' nowrap>視博網訊</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>22:00:44</td>
+<td style='text-align:left !important;'>公告本公司受邀參加群益金鼎證券舉辦之法人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='220044';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='C7971';document.fm_t05sr01_1.skey.value='C7971202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6185</td>
+<td style='text-align:left !important;' nowrap>幃翔</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>20:54:58</td>
+<td style='text-align:left !important;'>公告本公司董事會決議通過授權董事長辦理處分子公司
+「幃翔電子科技(蘇州)有限公司」股權事宜案</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='4';document.fm_t05sr01_1.SPOKE_TIME.value='205458';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6185';document.fm_t05sr01_1.skey.value='6185202611024';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>8499</td>
+<td style='text-align:left !important;' nowrap>鼎炫-KY</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>20:25:11</td>
+<td style='text-align:left !important;'>代&#12070;公司隆揚電&#12070;(昆&#12077;)股份有限公司公告取得理財產品</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='202511';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8499';document.fm_t05sr01_1.skey.value='8499202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>5235</td>
+<td style='text-align:left !important;' nowrap>金運</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>20:23:03</td>
+<td style='text-align:left !important;'>公告本公司董事會通過
+擬向關係人取得之不動產使用權資產2筆</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='202303';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5235';document.fm_t05sr01_1.skey.value='5235202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6531</td>
+<td style='text-align:left !important;' nowrap>愛普*</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>19:51:42</td>
+<td style='text-align:left !important;'>本公司召開線上法人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='195142';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6531';document.fm_t05sr01_1.skey.value='6531202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2891</td>
+<td style='text-align:left !important;' nowrap>中信金</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>19:50:44</td>
+<td style='text-align:left !important;'>代子公司中國信託綜合證券(股)公司公告於116年會計年度開始日後變動會計估計事項。
+(補充115/09/21公告)</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='195044';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2891';document.fm_t05sr01_1.skey.value='2891202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2891</td>
+<td style='text-align:left !important;' nowrap>中信金</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>19:49:56</td>
+<td style='text-align:left !important;'>代子公司中國信託綜合證券(股)公司公告於116年會計年度開始日後變動會計政策。
+(補充115/09/21公告)</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='194956';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2891';document.fm_t05sr01_1.skey.value='2891202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>4116</td>
+<td style='text-align:left !important;' nowrap>明基醫</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>19:47:48</td>
+<td style='text-align:left !important;'>公告本公司董事會通過設置企業永續發展委員會暨
+委任第一屆企業永續發展委員會委員</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='194748';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4116';document.fm_t05sr01_1.skey.value='4116202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>4116</td>
+<td style='text-align:left !important;' nowrap>明基醫</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>19:36:47</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='193647';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4116';document.fm_t05sr01_1.skey.value='4116202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2371</td>
+<td style='text-align:left !important;' nowrap>大同</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>19:36:01</td>
+<td style='text-align:left !important;'>公告本公司與華映科技（集團）股份有限公司間業績補償款
+訴訟案之協商和解事宜</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='193601';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2371';document.fm_t05sr01_1.skey.value='2371202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>8046</td>
+<td style='text-align:left !important;' nowrap>南電</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>19:35:56</td>
+<td style='text-align:left !important;'>代子公司南亞電路板(昆山)有限公司公告臨時股東會重要
+決議</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='193556';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8046';document.fm_t05sr01_1.skey.value='8046202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>8046</td>
+<td style='text-align:left !important;' nowrap>南電</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>19:35:37</td>
+<td style='text-align:left !important;'>代子公司南亞電路板(昆山)有限公司公告董事會
+決議發放股利</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='193537';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8046';document.fm_t05sr01_1.skey.value='8046202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2247</td>
+<td style='text-align:left !important;' nowrap>汎德永業</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>19:05:00</td>
+<td style='text-align:left !important;'>代重要子公司捷立汽車股份有限公司公告現金股利配發基準日</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='190500';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2247';document.fm_t05sr01_1.skey.value='2247202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>7956</td>
+<td style='text-align:left !important;' nowrap>啟賦</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:50:36</td>
+<td style='text-align:left !important;'>本公司董事會決議召開115年第一次股東臨時會公告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='185036';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7956';document.fm_t05sr01_1.skey.value='7956202610291';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>4772</td>
+<td style='text-align:left !important;' nowrap>台特化</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:43:41</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年度第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='184341';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4772';document.fm_t05sr01_1.skey.value='4772202610271';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3321</td>
+<td style='text-align:left !important;' nowrap>同泰</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:42:05</td>
+<td style='text-align:left !important;'>公告本公司內部稽核主管異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='184205';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3321';document.fm_t05sr01_1.skey.value='3321202610271';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6963</td>
+<td style='text-align:left !important;' nowrap>品元</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:32:26</td>
+<td style='text-align:left !important;'>公告本公司代理發言人及重要營運主管異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='183226';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6963';document.fm_t05sr01_1.skey.value='6963202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>7956</td>
+<td style='text-align:left !important;' nowrap>啟賦</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:32:09</td>
+<td style='text-align:left !important;'>公告本公司設置公司治理主管</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='183209';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7956';document.fm_t05sr01_1.skey.value='7956202610302';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>8431</td>
+<td style='text-align:left !important;' nowrap>匯鑽科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:29:15</td>
+<td style='text-align:left !important;'>代子公司頂群科技(深圳)有限公司公告資金貸
+與達「公開發行公司資金貸與及背書保證
+處理準則」第二十二條第一項第一款標準</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='182915';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8431';document.fm_t05sr01_1.skey.value='8431202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2758</td>
+<td style='text-align:left !important;' nowrap>路易莎咖啡</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:28:31</td>
+<td style='text-align:left !important;'>公告本公司內部稽核主管異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='182831';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2758';document.fm_t05sr01_1.skey.value='2758202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7686</td>
+<td style='text-align:left !important;' nowrap>捷立康</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:27:09</td>
+<td style='text-align:left !important;'>本公司董事會決議召開115年股東臨時會相關事宜(新增其他事項)</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='182709';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7686';document.fm_t05sr01_1.skey.value='7686202610301';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>4958</td>
+<td style='text-align:left !important;' nowrap>臻鼎-KY</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:21:55</td>
+<td style='text-align:left !important;'>代子公司禮鼎半導體科技(深圳)股份有限公司公告取得機器設備</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='182155';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4958';document.fm_t05sr01_1.skey.value='4958202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6112</td>
+<td style='text-align:left !important;' nowrap>邁達特</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:15:56</td>
+<td style='text-align:left !important;'>公告本公司召開線上法人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='181556';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6112';document.fm_t05sr01_1.skey.value='6112202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6278</td>
+<td style='text-align:left !important;' nowrap>台表科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:15:39</td>
+<td style='text-align:left !important;'>代子公司峻凌電子(合肥)有限公司公告取得土地使用權及租地委建廠房</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='181539';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6278';document.fm_t05sr01_1.skey.value='6278202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6997</td>
+<td style='text-align:left !important;' nowrap>博弘</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:12:45</td>
+<td style='text-align:left !important;'>公告董事會通過本公司發言人異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='181245';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6997';document.fm_t05sr01_1.skey.value='6997202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6112</td>
+<td style='text-align:left !important;' nowrap>邁達特</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:12:35</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年度第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='181235';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6112';document.fm_t05sr01_1.skey.value='6112202610291';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6898</td>
+<td style='text-align:left !important;' nowrap>程曦資訊</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:12:02</td>
+<td style='text-align:left !important;'>公告本公司初次上櫃掛牌首五個營業日穩定價格操作結果</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='181202';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6898';document.fm_t05sr01_1.skey.value='6898202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6997</td>
+<td style='text-align:left !important;' nowrap>博弘</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:11:06</td>
+<td style='text-align:left !important;'>公告本公司董事會決議通過115年第3季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='181106';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6997';document.fm_t05sr01_1.skey.value='6997202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2614</td>
+<td style='text-align:left !important;' nowrap>東森</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:06:55</td>
+<td style='text-align:left !important;'>本公司115年現金增資股款催繳公告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='180655';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2614';document.fm_t05sr01_1.skey.value='2614202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3521</td>
+<td style='text-align:left !important;' nowrap>台鋼建設</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:06:11</td>
+<td style='text-align:left !important;'>公告董事會決議解除董事競業禁止之限制案</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='180611';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3521';document.fm_t05sr01_1.skey.value='3521202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7706</td>
+<td style='text-align:left !important;' nowrap>宏碁創達</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:04:56</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='180456';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7706';document.fm_t05sr01_1.skey.value='7706202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>5213</td>
+<td style='text-align:left !important;' nowrap>亞昕</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:03:04</td>
+<td style='text-align:left !important;'>公告本公司取得有價證券</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='180304';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5213';document.fm_t05sr01_1.skey.value='5213202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>1309</td>
+<td style='text-align:left !important;' nowrap>台達化</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>18:01:47</td>
+<td style='text-align:left !important;'>公告本公司審計委員會暨薪酬委員會委員異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='180147';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1309';document.fm_t05sr01_1.skey.value='1309202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>1309</td>
+<td style='text-align:left !important;' nowrap>台達化</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:59:40</td>
+<td style='text-align:left !important;'>公告本公司獨立董事異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='175940';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1309';document.fm_t05sr01_1.skey.value='1309202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7935</td>
+<td style='text-align:left !important;' nowrap>安富</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:58:39</td>
+<td style='text-align:left !important;'>公告本公司董事會決議子公司NFORE HOLDINGS CO., LTD.
+辦理資本結構調整案(減少股本轉列資本公積)</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='175839';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7935';document.fm_t05sr01_1.skey.value='7935202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>1309</td>
+<td style='text-align:left !important;' nowrap>台達化</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:56:49</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='175649';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1309';document.fm_t05sr01_1.skey.value='1309202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6655</td>
+<td style='text-align:left !important;' nowrap>科定</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:53:43</td>
+<td style='text-align:left !important;'>公告本公司買回庫藏股期間屆滿執行情形</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='175343';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6655';document.fm_t05sr01_1.skey.value='6655202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6278</td>
+<td style='text-align:left !important;' nowrap>台表科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:52:39</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第3季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='175239';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6278';document.fm_t05sr01_1.skey.value='6278202610301';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>8935</td>
+<td style='text-align:left !important;' nowrap>邦泰</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:51:57</td>
+<td style='text-align:left !important;'>公告本公司法人董事代表人改派</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='175157';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8935';document.fm_t05sr01_1.skey.value='8935202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6231</td>
+<td style='text-align:left !important;' nowrap>系微</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:48:54</td>
+<td style='text-align:left !important;'>公告本公司從事衍生性商品交易資訊</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='174854';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6231';document.fm_t05sr01_1.skey.value='6231202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>4906</td>
+<td style='text-align:left !important;' nowrap>正文</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:48:35</td>
+<td style='text-align:left !important;'>公告本公司國內第七次暨第八次無擔保轉換公司債
+代收價款行庫及存儲專戶行庫</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='174835';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4906';document.fm_t05sr01_1.skey.value='4906202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2617</td>
+<td style='text-align:left !important;' nowrap>台航</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:47:11</td>
+<td style='text-align:left !important;'>公告本公司代理發言人變動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='174711';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2617';document.fm_t05sr01_1.skey.value='2617202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2617</td>
+<td style='text-align:left !important;' nowrap>台航</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:45:26</td>
+<td style='text-align:left !important;'>公告本公司發言人變動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='174526';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2617';document.fm_t05sr01_1.skey.value='2617202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3629</td>
+<td style='text-align:left !important;' nowrap>地心引力</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:41:54</td>
+<td style='text-align:left !important;'>公告本公司代理發言人異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='4';document.fm_t05sr01_1.SPOKE_TIME.value='174154';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3629';document.fm_t05sr01_1.skey.value='3629202611024';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3629</td>
+<td style='text-align:left !important;' nowrap>地心引力</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:41:31</td>
+<td style='text-align:left !important;'>公告本公司業務副總職務異動案</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='174131';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3629';document.fm_t05sr01_1.skey.value='3629202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>8104</td>
+<td style='text-align:left !important;' nowrap>錸寶</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:38:50</td>
+<td style='text-align:left !important;'>代重要子公司瀚泰能源(股)公司公告董事會決議現金增資
+發行特別股</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='173850';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8104';document.fm_t05sr01_1.skey.value='8104202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>8446</td>
+<td style='text-align:left !important;' nowrap>華研</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:38:08</td>
+<td style='text-align:left !important;'>本公司董事會決議通過115年上半年盈餘分配案。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='173808';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8446';document.fm_t05sr01_1.skey.value='8446202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6207</td>
+<td style='text-align:left !important;' nowrap>雷科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:36:51</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季合併財務報告。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='173651';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6207';document.fm_t05sr01_1.skey.value='6207202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3521</td>
+<td style='text-align:left !important;' nowrap>台鋼建設</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:35:29</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第3季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='173529';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3521';document.fm_t05sr01_1.skey.value='3521202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>1560</td>
+<td style='text-align:left !important;' nowrap>中砂</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:31:43</td>
+<td style='text-align:left !important;'>本公司受邀參加UBS舉辦UBS Future Now 2026: Asia Technology and Innovation Conference之法人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='173143';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1560';document.fm_t05sr01_1.skey.value='1560202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>1560</td>
+<td style='text-align:left !important;' nowrap>中砂</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:31:19</td>
+<td style='text-align:left !important;'>本公司受邀參加J.P. Morgan.舉辦APAC Technology, Innovation and Growth Conference之法人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='173119';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1560';document.fm_t05sr01_1.skey.value='1560202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6264</td>
+<td style='text-align:left !important;' nowrap>富裔</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:29:35</td>
+<td style='text-align:left !important;'>公告本公司115年9月自結合併財務報告之負債比率
+、流動比率及速動比率</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='172935';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6264';document.fm_t05sr01_1.skey.value='6264202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>1528</td>
+<td style='text-align:left !important;' nowrap>恩德</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:28:51</td>
+<td style='text-align:left !important;'>公告本公司資金貸與子公司逾期之改善計畫及執行情形（依
+金管證審字第1150356813號函）</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='172851';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1528';document.fm_t05sr01_1.skey.value='1528202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6885</td>
+<td style='text-align:left !important;' nowrap>全福生技</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:23:02</td>
+<td style='text-align:left !important;'>公告本公司董事逝世</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='172302';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6885';document.fm_t05sr01_1.skey.value='6885202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>8446</td>
+<td style='text-align:left !important;' nowrap>華研</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:19:36</td>
+<td style='text-align:left !important;'>公告本公司董事會重要決議事項</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='171936';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8446';document.fm_t05sr01_1.skey.value='8446202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3704</td>
+<td style='text-align:left !important;' nowrap>合勤控</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:19:25</td>
+<td style='text-align:left !important;'>對子公司合勤科技(股)公司之資金貸與他人金額符合公開發行
+公司資金貸與及背書保證處理準則第22條第一項第三款之規定</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='171925';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3704';document.fm_t05sr01_1.skey.value='3704202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2252</td>
+<td style='text-align:left !important;' nowrap>為昇科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:19:15</td>
+<td style='text-align:left !important;'>公告本公司董事逝世</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='171915';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2252';document.fm_t05sr01_1.skey.value='2252202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>8446</td>
+<td style='text-align:left !important;' nowrap>華研</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:19:02</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年度第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='171902';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8446';document.fm_t05sr01_1.skey.value='8446202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7849</td>
+<td style='text-align:left !important;' nowrap>旭誼</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:18:30</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年度第三季財務報表</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='171830';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7849';document.fm_t05sr01_1.skey.value='7849202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3704</td>
+<td style='text-align:left !important;' nowrap>合勤控</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:18:24</td>
+<td style='text-align:left !important;'>對子公司盟創科技(股)公司之資金貸與他人金額符合公開發行公司
+資金貸與及背書保證處理準則第22條第一項第三款之規定</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='171824';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3704';document.fm_t05sr01_1.skey.value='3704202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7904</td>
+<td style='text-align:left !important;' nowrap>任開數位</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:14:53</td>
+<td style='text-align:left !important;'>本公司發生網路資安事件說明</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='171453';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7904';document.fm_t05sr01_1.skey.value='7904202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2890</td>
+<td style='text-align:left !important;' nowrap>永豐金</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:14:24</td>
+<td style='text-align:left !important;'>永豐金控代子公司京城銀行公告股東臨時會重要決議事項</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='171424';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2890';document.fm_t05sr01_1.skey.value='2890202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2890</td>
+<td style='text-align:left !important;' nowrap>永豐金</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:13:56</td>
+<td style='text-align:left !important;'>永豐金控代子公司京城銀行公告董事會決議通過
+停止股票公開發行暨辦理解散案</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='171356';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2890';document.fm_t05sr01_1.skey.value='2890202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2890</td>
+<td style='text-align:left !important;' nowrap>永豐金</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:13:26</td>
+<td style='text-align:left !important;'>永豐金控公告115年第三季法人說明會相關資訊</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='171326';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2890';document.fm_t05sr01_1.skey.value='2890202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6496</td>
+<td style='text-align:left !important;' nowrap>科懋</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:13:14</td>
+<td style='text-align:left !important;'>公告本公司董事會決議註銷庫藏股減資事宜</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='171314';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6496';document.fm_t05sr01_1.skey.value='6496202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3704</td>
+<td style='text-align:left !important;' nowrap>合勤控</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:12:27</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第3季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='171227';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3704';document.fm_t05sr01_1.skey.value='3704202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7889</td>
+<td style='text-align:left !important;' nowrap>騰勢</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:11:40</td>
+<td style='text-align:left !important;'>公告本公司115年度第三季財務報告之董事會預計召開日期。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='171140';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7889';document.fm_t05sr01_1.skey.value='7889202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6496</td>
+<td style='text-align:left !important;' nowrap>科懋</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:11:31</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第3季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='171131';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6496';document.fm_t05sr01_1.skey.value='6496202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6803</td>
+<td style='text-align:left !important;' nowrap>崑鼎</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:10:47</td>
+<td style='text-align:left !important;'>公告本公司董事長辭任</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='171047';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6803';document.fm_t05sr01_1.skey.value='6803202610201';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2882</td>
+<td style='text-align:left !important;' nowrap>國泰金</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:10:16</td>
+<td style='text-align:left !important;'>代子公司國泰綜合證券公告向國泰人壽保險(股)公司取得使用權資產</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='171016';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2882';document.fm_t05sr01_1.skey.value='2882202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3004</td>
+<td style='text-align:left !important;' nowrap>豐達科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:09:30</td>
+<td style='text-align:left !important;'>新聞稿--豐達十月自結合併營收為5.45億元</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='170930';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3004';document.fm_t05sr01_1.skey.value='3004202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6496</td>
+<td style='text-align:left !important;' nowrap>科懋</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:09:28</td>
+<td style='text-align:left !important;'>代子公司科進製藥科技股份有限公司公告
+115年第3季財務報表提報董事會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='170928';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6496';document.fm_t05sr01_1.skey.value='6496202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3702</td>
+<td style='text-align:left !important;' nowrap>大聯大</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:04:18</td>
+<td style='text-align:left !important;'>代子公司-世平興業(股)公司、詮鼎科技(股)公司公告
+現金增資基準日</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='170418';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3702';document.fm_t05sr01_1.skey.value='3702202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2498</td>
+<td style='text-align:left !important;' nowrap>宏達電</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:01:10</td>
+<td style='text-align:left !important;'>代重要子公司HTC Holding B.V.公告董事異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='170110';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2498';document.fm_t05sr01_1.skey.value='2498202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2498</td>
+<td style='text-align:left !important;' nowrap>宏達電</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:00:46</td>
+<td style='text-align:left !important;'>本公司董事會通過員工認股權憑證轉換普通股之
+增資基準日</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='170046';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2498';document.fm_t05sr01_1.skey.value='2498202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2498</td>
+<td style='text-align:left !important;' nowrap>宏達電</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>17:00:18</td>
+<td style='text-align:left !important;'>本公司董事會決議通過115年第3季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='170018';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2498';document.fm_t05sr01_1.skey.value='2498202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>5215</td>
+<td style='text-align:left !important;' nowrap>科嘉-KY</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:59:39</td>
+<td style='text-align:left !important;'>代子公司蘇州嘉吉/科德/嘉財/艾普來/百宏/嘉皇/嘉駿 
+公告一年內累積取得同一有價證券達實收資本額20%</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='165939';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5215';document.fm_t05sr01_1.skey.value='5215202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>5215</td>
+<td style='text-align:left !important;' nowrap>科嘉-KY</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:59:24</td>
+<td style='text-align:left !important;'>代子公司蘇州嘉吉/科德/嘉財/艾普來/百宏/嘉皇/嘉駿 
+公告一年內累積處分同一有價證券達實收資本額20%</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='165924';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5215';document.fm_t05sr01_1.skey.value='5215202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7708</td>
+<td style='text-align:left !important;' nowrap>全家餐飲</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:59:06</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='165906';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7708';document.fm_t05sr01_1.skey.value='7708202610291';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>7880</td>
+<td style='text-align:left !important;' nowrap>聖凰</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:58:16</td>
+<td style='text-align:left !important;'>公告本公司法人董事改派代表人</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='165816';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7880';document.fm_t05sr01_1.skey.value='7880202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>5548</td>
+<td style='text-align:left !important;' nowrap>安倉</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:55:49</td>
+<td style='text-align:left !important;'>公告本公司參加交通部民用航空局公開招標，得標
+「高雄國際機場新航廈工程計畫-第一期建設計畫-
+站前交通及設施改善工程」</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='165549';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5548';document.fm_t05sr01_1.skey.value='5548202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>1589</td>
+<td style='text-align:left !important;' nowrap>永冠-KY</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:55:02</td>
+<td style='text-align:left !important;'>公告本公司上一月份實際及未來三個月預計之現金收支狀況、截
+至上一月底之長短期債務餘額及銀行融資額度使用情形</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='165502';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1589';document.fm_t05sr01_1.skey.value='1589202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6185</td>
+<td style='text-align:left !important;' nowrap>幃翔</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:54:20</td>
+<td style='text-align:left !important;'>公告本公司總經理異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='165420';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6185';document.fm_t05sr01_1.skey.value='6185202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6185</td>
+<td style='text-align:left !important;' nowrap>幃翔</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:48:53</td>
+<td style='text-align:left !important;'>本公司董事會通過115年度第3季財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='164853';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6185';document.fm_t05sr01_1.skey.value='6185202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2408</td>
+<td style='text-align:left !important;' nowrap>南亞科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:48:05</td>
+<td style='text-align:left !important;'>公告本公司取得機器設備</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='164805';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2408';document.fm_t05sr01_1.skey.value='2408202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6207</td>
+<td style='text-align:left !important;' nowrap>雷科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:45:31</td>
+<td style='text-align:left !important;'>公告雷科股份有限公司國內第六次無擔保轉換公司債(簡稱：雷科六，代碼：62076)發行公司行使債券贖回權暨訂於115年12月21日終止櫃檯買賣等相關事宜。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='164531';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6207';document.fm_t05sr01_1.skey.value='6207202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6207</td>
+<td style='text-align:left !important;' nowrap>雷科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:45:10</td>
+<td style='text-align:left !important;'>公告雷科股份有限公司國內第五次無擔保轉換公司債(簡稱：雷科五，代碼：62075)發行公司行使債券贖回權暨訂於115年12月21日終止櫃檯買賣等相關事宜。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='164510';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6207';document.fm_t05sr01_1.skey.value='6207202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3711</td>
+<td style='text-align:left !important;' nowrap>日月光投控</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:45:05</td>
+<td style='text-align:left !important;'>代子公司矽品精密工業(股)公司公告取得廠務工程</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='5';document.fm_t05sr01_1.SPOKE_TIME.value='164505';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3711';document.fm_t05sr01_1.skey.value='3711202611025';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3711</td>
+<td style='text-align:left !important;' nowrap>日月光投控</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:44:30</td>
+<td style='text-align:left !important;'>代子公司矽品精密工業(股)公司公告取得廠務工程</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='4';document.fm_t05sr01_1.SPOKE_TIME.value='164430';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3711';document.fm_t05sr01_1.skey.value='3711202611024';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3711</td>
+<td style='text-align:left !important;' nowrap>日月光投控</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:43:51</td>
+<td style='text-align:left !important;'>代子公司矽品精密工業(股)公司公告取得廠務工程</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='164351';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3711';document.fm_t05sr01_1.skey.value='3711202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>4738</td>
+<td style='text-align:left !important;' nowrap>大同精化</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:43:36</td>
+<td style='text-align:left !important;'>更新公告本公司決議訂定減資基準日、減資換股作業計畫書
+及減資換發基準日-修訂日期及相關事宜</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='164336';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4738';document.fm_t05sr01_1.skey.value='4738202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>1802</td>
+<td style='text-align:left !important;' nowrap>台玻</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:43:04</td>
+<td style='text-align:left !important;'>董事會通過本公司桃園廠、鹿港廠窯爐增建及子公司台嘉
+蚌埠玻璃纖維有限公司冷修擴充案</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='164304';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1802';document.fm_t05sr01_1.skey.value='1802202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3105</td>
+<td style='text-align:left !important;' nowrap>穩懋</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:42:34</td>
+<td style='text-align:left !important;'>公告本公司115/11/16受邀參加麥格理證券舉辦之「MACQUARIE TAIWAN CONFERENCE」</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='164234';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3105';document.fm_t05sr01_1.skey.value='3105202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3105</td>
+<td style='text-align:left !important;' nowrap>穩懋</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:42:23</td>
+<td style='text-align:left !important;'>公告本公司115/11/12 至 115/11/13受邀參加櫃買中心與凱基證券於香港聯合舉辦之「TPEx & KGI HK Corporate Day 」</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='164223';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3105';document.fm_t05sr01_1.skey.value='3105202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3105</td>
+<td style='text-align:left !important;' nowrap>穩懋</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:42:12</td>
+<td style='text-align:left !important;'>公告本公司受邀參加寬量國際主辦之「QIC's 20th Taiwan CEO Week」線上法說會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='164212';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3105';document.fm_t05sr01_1.skey.value='3105202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6204</td>
+<td style='text-align:left !important;' nowrap>艾華</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:39:45</td>
+<td style='text-align:left !important;'>公告本公司財務主管暨發言人異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='163945';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6204';document.fm_t05sr01_1.skey.value='6204202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>1802</td>
+<td style='text-align:left !important;' nowrap>台玻</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:33:12</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='163312';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1802';document.fm_t05sr01_1.skey.value='1802202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>4416</td>
+<td style='text-align:left !important;' nowrap>三圓</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:32:29</td>
+<td style='text-align:left !important;'>公告本公司之關係人退票事宜</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='163229';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4416';document.fm_t05sr01_1.skey.value='4416202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>4416</td>
+<td style='text-align:left !important;' nowrap>三圓</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:32:14</td>
+<td style='text-align:left !important;'>公告本公司本週到期票據、應償還借款及利息等相關資訊</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='163214';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4416';document.fm_t05sr01_1.skey.value='4416202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>8114</td>
+<td style='text-align:left !important;' nowrap>振樺電</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:30:01</td>
+<td style='text-align:left !important;'>代子公司KIOSK Information Systems, Inc. 公告向關係人取得不動產使用權資產</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='163001';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8114';document.fm_t05sr01_1.skey.value='8114202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7911</td>
+<td style='text-align:left !important;' nowrap>阿波羅電力</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:27:25</td>
+<td style='text-align:left !important;'>公告本公司與甲公司簽訂企業強韌電網（表後儲能）
+系統設備及安裝工程承攬合約</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='162725';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7911';document.fm_t05sr01_1.skey.value='7911202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>4916</td>
+<td style='text-align:left !important;' nowrap>事欣科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:26:12</td>
+<td style='text-align:left !important;'>公告本公司國內第六次無擔保轉換公司債之委託代收價款及
+存儲專戶行庫</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='162612';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4916';document.fm_t05sr01_1.skey.value='4916202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2383</td>
+<td style='text-align:left !important;' nowrap>台光電</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:25:38</td>
+<td style='text-align:left !important;'>本公司受邀參加摩根大通舉辦之線上法人座談會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='162538';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2383';document.fm_t05sr01_1.skey.value='2383202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6527</td>
+<td style='text-align:left !important;' nowrap>明達醫</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:19:54</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='161954';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6527';document.fm_t05sr01_1.skey.value='6527202610281';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6908</td>
+<td style='text-align:left !important;' nowrap>宏碁遊戲-創</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:17:30</td>
+<td style='text-align:left !important;'>本公司受邀參加群益金鼎證券舉辦之法人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='161730';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6908';document.fm_t05sr01_1.skey.value='6908202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6908</td>
+<td style='text-align:left !important;' nowrap>宏碁遊戲-創</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:17:12</td>
+<td style='text-align:left !important;'>公告本公司董事會通過一一五年第三季合併財務報表</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='161712';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6908';document.fm_t05sr01_1.skey.value='6908202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>4565</td>
+<td style='text-align:left !important;' nowrap>宏偉</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:16:59</td>
+<td style='text-align:left !important;'>公告本公司115年第三季財務報告董事會召開日期</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='161659';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4565';document.fm_t05sr01_1.skey.value='4565202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2402</td>
+<td style='text-align:left !important;' nowrap>毅嘉</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:06:29</td>
+<td style='text-align:left !important;'>代子公司ICHIA RUBBER INDUSTRY (M) SDN BHD補充說明
+一離職員工偽造文書及挪用公司資產之情事</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='160629';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2402';document.fm_t05sr01_1.skey.value='2402202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>1535</td>
+<td style='text-align:left !important;' nowrap>中宇</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:03:53</td>
+<td style='text-align:left !important;'>公告本公司代理發言人異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='160353';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1535';document.fm_t05sr01_1.skey.value='1535202610302';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>1535</td>
+<td style='text-align:left !important;' nowrap>中宇</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:03:27</td>
+<td style='text-align:left !important;'>本公司民國115年第3季合併財務報告業經董事會決議通過</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='160327';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1535';document.fm_t05sr01_1.skey.value='1535202610301';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2105</td>
+<td style='text-align:left !important;' nowrap>正新</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:00:59</td>
+<td style='text-align:left !important;'>公告本公司獨立董事辭職功能性委員會之委員</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='160059';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2105';document.fm_t05sr01_1.skey.value='2105202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2105</td>
+<td style='text-align:left !important;' nowrap>正新</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:00:24</td>
+<td style='text-align:left !important;'>公告本公司獨立董事辭職</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='160024';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2105';document.fm_t05sr01_1.skey.value='2105202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6719</td>
+<td style='text-align:left !important;' nowrap>力智</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:58:49</td>
+<td style='text-align:left !important;'>公告本公司國內第1次私募無擔保轉換公司債辦理債息
+發放停止過戶暨停止轉換等相關事宜</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='155849';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6719';document.fm_t05sr01_1.skey.value='6719202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6442</td>
+<td style='text-align:left !important;' nowrap>光聖</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:58:35</td>
+<td style='text-align:left !important;'>公告本公司現金增資發
+行新股案，向金管會申請延
+長募集期間，業經准予備查</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='155835';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6442';document.fm_t05sr01_1.skey.value='6442202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2317</td>
+<td style='text-align:left !important;' nowrap>鴻海</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:58:20</td>
+<td style='text-align:left !important;'>公告本公司115年度第4期無擔保普通公司債主要發行條件</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='155820';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2317';document.fm_t05sr01_1.skey.value='2317202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2317</td>
+<td style='text-align:left !important;' nowrap>鴻海</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:58:00</td>
+<td style='text-align:left !important;'>代重要子公司Foxconn (Far East) Limited-Cayman
+公告董事會決議現金減資</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='155800';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2317';document.fm_t05sr01_1.skey.value='2317202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6510</td>
+<td style='text-align:left !important;' nowrap>精測</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:56:58</td>
+<td style='text-align:left !important;'>本公司受邀參加櫃買中心與凱基證券舉辦之「海外法人說明會」</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='155658';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6510';document.fm_t05sr01_1.skey.value='6510202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6510</td>
+<td style='text-align:left !important;' nowrap>精測</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:56:16</td>
+<td style='text-align:left !important;'>本公司受邀參加大和證券舉辦之「Daiwa Investment Conference 2026」</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='155616';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6510';document.fm_t05sr01_1.skey.value='6510202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3465</td>
+<td style='text-align:left !important;' nowrap>進泰電子</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:54:22</td>
+<td style='text-align:left !important;'>本公司受邀參加國票綜合證券舉辦之線上法人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='155422';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3465';document.fm_t05sr01_1.skey.value='3465202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2886</td>
+<td style='text-align:left !important;' nowrap>兆豐金</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:54:21</td>
+<td style='text-align:left !important;'>公告本公司將召開2026年第三季線上法人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='155421';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2886';document.fm_t05sr01_1.skey.value='2886202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>5340</td>
+<td style='text-align:left !important;' nowrap>建榮</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:53:53</td>
+<td style='text-align:left !important;'>本公司受邀參加中信證券舉辦之線上法說會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='155353';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5340';document.fm_t05sr01_1.skey.value='5340202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>7912</td>
+<td style='text-align:left !important;' nowrap>新聿科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:51:57</td>
+<td style='text-align:left !important;'>公告本公司115年第三季財務報告董事會預計召開日期為
+115年11月10日</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='155157';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7912';document.fm_t05sr01_1.skey.value='7912202610301';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7924</td>
+<td style='text-align:left !important;' nowrap>TLC-KY</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:50:57</td>
+<td style='text-align:left !important;'>公告本公司取得經濟部產業發展署出具之「係屬科技事業
+及產品開發成功且具市場性」之意見書</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='155057';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7924';document.fm_t05sr01_1.skey.value='7924202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>7909</td>
+<td style='text-align:left !important;' nowrap>鈺祥</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:46:56</td>
+<td style='text-align:left !important;'>公告本公司115年第三季財務報告董事會召開日期</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='154656';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7909';document.fm_t05sr01_1.skey.value='7909202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3466</td>
+<td style='text-align:left !important;' nowrap>德晉</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:35:55</td>
+<td style='text-align:left !important;'>公告本公司法人董事指派代表人</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='153555';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3466';document.fm_t05sr01_1.skey.value='3466202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6895</td>
+<td style='text-align:left !important;' nowrap>宏碩系統</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:35:06</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季財務報表案</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='153506';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6895';document.fm_t05sr01_1.skey.value='6895202610281';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6419</td>
+<td style='text-align:left !important;' nowrap>京晨科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:34:35</td>
+<td style='text-align:left !important;'>公告本公司最近一年累積取得有價證券達公告標準</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='153435';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6419';document.fm_t05sr01_1.skey.value='6419202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>7950</td>
+<td style='text-align:left !important;' nowrap>盛大資訊</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:33:22</td>
+<td style='text-align:left !important;'>公告本公司115年現金增資基準日暨相關事宜
+(補充公告代收股款及存儲專戶行庫)</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='7';document.fm_t05sr01_1.SPOKE_TIME.value='153322';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7950';document.fm_t05sr01_1.skey.value='7950202611027';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3691</td>
+<td style='text-align:left !important;' nowrap>碩禾</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:32:47</td>
+<td style='text-align:left !important;'>本公司有價證券近期多次達公布注意交易資訊標準，故公告相關
+訊息，以利投資人區別暸解</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='153247';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3691';document.fm_t05sr01_1.skey.value='3691202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2231</td>
+<td style='text-align:left !important;' nowrap>為升</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:32:43</td>
+<td style='text-align:left !important;'>代重要子公司立承系統科技股份有限公司
+公告法人董事代表人異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='153243';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2231';document.fm_t05sr01_1.skey.value='2231202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3042</td>
+<td style='text-align:left !important;' nowrap>晶技</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:32:07</td>
+<td style='text-align:left !important;'>本公司董事會通過115年第3季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='153207';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3042';document.fm_t05sr01_1.skey.value='3042202610291';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3684</td>
+<td style='text-align:left !important;' nowrap>榮昌</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:31:00</td>
+<td style='text-align:left !important;'>本公司董事會通過變更第三次庫藏股買回目的</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='4';document.fm_t05sr01_1.SPOKE_TIME.value='153100';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3684';document.fm_t05sr01_1.skey.value='3684202611024';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2409</td>
+<td style='text-align:left !important;' nowrap>友達</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:30:17</td>
+<td style='text-align:left !important;'>公告本公司將參加玉山證券舉辦之「法人座談會」</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='153017';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2409';document.fm_t05sr01_1.skey.value='2409202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6841</td>
+<td style='text-align:left !important;' nowrap>長佳智能</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:27:26</td>
+<td style='text-align:left !important;'>本公司「大血管阻塞檢測系統」
+EFAI NEUROSUITE CTA LVO ASSESSMENT SYSTEM
+獲得美國FDA上市許可核准。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='152726';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6841';document.fm_t05sr01_1.skey.value='6841202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>4960</td>
+<td style='text-align:left !important;' nowrap>誠美材</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:24:32</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='152432';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4960';document.fm_t05sr01_1.skey.value='4960202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6723</td>
+<td style='text-align:left !important;' nowrap>傑智環境</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:17:33</td>
+<td style='text-align:left !important;'>公告本公司董事會通過更換主辦輔導推薦證券商事宜</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='151733';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6723';document.fm_t05sr01_1.skey.value='6723202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6723</td>
+<td style='text-align:left !important;' nowrap>傑智環境</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:16:34</td>
+<td style='text-align:left !important;'>公告本公司董事會重要決議</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='151634';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6723';document.fm_t05sr01_1.skey.value='6723202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3628</td>
+<td style='text-align:left !important;' nowrap>盈正</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:15:10</td>
+<td style='text-align:left !important;'>公告本公司內部稽核主管異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='151510';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3628';document.fm_t05sr01_1.skey.value='3628202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3628</td>
+<td style='text-align:left !important;' nowrap>盈正</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:14:52</td>
+<td style='text-align:left !important;'>公告本公司公司治理主管異動(115/9/30補充)</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='4';document.fm_t05sr01_1.SPOKE_TIME.value='151452';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3628';document.fm_t05sr01_1.skey.value='3628202611024';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3628</td>
+<td style='text-align:left !important;' nowrap>盈正</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:14:29</td>
+<td style='text-align:left !important;'>公告本公司董事會通過114年第三季合併財務報表</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='151429';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3628';document.fm_t05sr01_1.skey.value='3628202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6950</td>
+<td style='text-align:left !important;' nowrap>科科科技-KY</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:14:18</td>
+<td style='text-align:left !important;'>代重要子公司 KKCompany Technologies Pte. Ltd. 公告董事變更</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='151418';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6950';document.fm_t05sr01_1.skey.value='6950202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3029</td>
+<td style='text-align:left !important;' nowrap>零壹</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:11:14</td>
+<td style='text-align:left !important;'>公告本公司115年第3季合併財務報告業經董事會決議通過</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='151114';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3029';document.fm_t05sr01_1.skey.value='3029202610301';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3684</td>
+<td style='text-align:left !important;' nowrap>榮昌</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:09:52</td>
+<td style='text-align:left !important;'>公告本公司員工認股權憑證115年第3季轉換發行新股暨增資基準日</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='3';document.fm_t05sr01_1.SPOKE_TIME.value='150952';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3684';document.fm_t05sr01_1.skey.value='3684202611023';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3684</td>
+<td style='text-align:left !important;' nowrap>榮昌</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:09:19</td>
+<td style='text-align:left !important;'>公告本公司董事會通過115年第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='150919';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3684';document.fm_t05sr01_1.skey.value='3684202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3684</td>
+<td style='text-align:left !important;' nowrap>榮昌</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:08:56</td>
+<td style='text-align:left !important;'>公告本公司董事會重要決議</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='150856';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3684';document.fm_t05sr01_1.skey.value='3684202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>1538</td>
+<td style='text-align:left !important;' nowrap>正峰</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:08:53</td>
+<td style='text-align:left !important;'>公告本公司法人代表人董事辭任</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='150853';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1538';document.fm_t05sr01_1.skey.value='1538202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>8099</td>
+<td style='text-align:left !important;' nowrap>大世科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:06:08</td>
+<td style='text-align:left !important;'>本公司有價證券近期多次達公布注意交易資訊標準，
+故公告相關訊息，以利投資人區別暸解</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='150608';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='8099';document.fm_t05sr01_1.skey.value='8099202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6535</td>
+<td style='text-align:left !important;' nowrap>順藥</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:03:50</td>
+<td style='text-align:left !important;'>公告本公司受邀參加黑石財經舉辦之法說會「戰略臺灣投資論壇」</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='150350';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6535';document.fm_t05sr01_1.skey.value='6535202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6658</td>
+<td style='text-align:left !important;' nowrap>聯策</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>15:02:37</td>
+<td style='text-align:left !important;'>公告本公司發行國內第一次無擔保轉換公司債完成訂價</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='150237';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6658';document.fm_t05sr01_1.skey.value='6658202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3533</td>
+<td style='text-align:left !important;' nowrap>嘉澤</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:56:13</td>
+<td style='text-align:left !important;'>本公司受邀參加大和國泰證券舉辦之線上法說會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='145613';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3533';document.fm_t05sr01_1.skey.value='3533202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2233</td>
+<td style='text-align:left !important;' nowrap>宇隆</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:55:34</td>
+<td style='text-align:left !important;'>代子公司浙江宇鑽精密元件有限公司公告股東會
+決議通過盈餘分配案</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='145534';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2233';document.fm_t05sr01_1.skey.value='2233202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>5434</td>
+<td style='text-align:left !important;' nowrap>崇越</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:51:40</td>
+<td style='text-align:left !important;'>115年現金增資認股基準日及相關事宜</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='145140';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5434';document.fm_t05sr01_1.skey.value='5434202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>4502</td>
+<td style='text-align:left !important;' nowrap>健信</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:50:15</td>
+<td style='text-align:left !important;'>公告本公司及子公司115年09月之負債比率、流動比率及速動比率</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='145015';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4502';document.fm_t05sr01_1.skey.value='4502202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3518</td>
+<td style='text-align:left !important;' nowrap>柏騰</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:43:58</td>
+<td style='text-align:left !important;'>公告本公司及子公司達公開發行公司資金貸與及背書保證
+處理準則第二十二條第一項第二款</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='144358';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3518';document.fm_t05sr01_1.skey.value='3518202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>5228</td>
+<td style='text-align:left !important;' nowrap>鈺鎧</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:36:54</td>
+<td style='text-align:left !important;'>公告本公司115年第三季財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='143654';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5228';document.fm_t05sr01_1.skey.value='5228202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6756</td>
+<td style='text-align:left !important;' nowrap>威鋒電子</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:30:56</td>
+<td style='text-align:left !important;'>公告本公司受邀參加凱基證券舉辦之線上法人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='143056';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6756';document.fm_t05sr01_1.skey.value='6756202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3711</td>
+<td style='text-align:left !important;' nowrap>日月光投控</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:21:04</td>
+<td style='text-align:left !important;'>代子公司Asteelflash USA Corp.公告董事會決議讓與租賃合約</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='142104';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3711';document.fm_t05sr01_1.skey.value='3711202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2356</td>
+<td style='text-align:left !important;' nowrap>英業達</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:17:03</td>
+<td style='text-align:left !important;'>(補充115/06/30公告)公告本公司董事會決議通過，擬自地委建廠房</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='141703';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2356';document.fm_t05sr01_1.skey.value='2356202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>5309</td>
+<td style='text-align:left !important;' nowrap>系統電</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:16:18</td>
+<td style='text-align:left !important;'>公告本公司115年第三季財務報告董事會預計召開日期為
+115年11月10日</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='141618';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5309';document.fm_t05sr01_1.skey.value='5309202610061';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2327</td>
+<td style='text-align:left !important;' nowrap>國巨*</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:11:52</td>
+<td style='text-align:left !important;'>公告本公司資訊安全長異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='141152';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2327';document.fm_t05sr01_1.skey.value='2327202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2327</td>
+<td style='text-align:left !important;' nowrap>國巨*</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:11:17</td>
+<td style='text-align:left !important;'>本公司受邀參加由Nomura舉辦之投資人說明會</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='141117';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2327';document.fm_t05sr01_1.skey.value='2327202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6235</td>
+<td style='text-align:left !important;' nowrap>華孚</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:07:11</td>
+<td style='text-align:left !important;'>新聞稿-華孚115年10月自結合併營收為新台幣4.96億元</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='140711';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6235';document.fm_t05sr01_1.skey.value='6235202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2301</td>
+<td style='text-align:left !important;' nowrap>光寶科</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>14:06:02</td>
+<td style='text-align:left !important;'>公告本公司庫藏股註銷完成變更登記事宜</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='140602';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2301';document.fm_t05sr01_1.skey.value='2301202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>3711</td>
+<td style='text-align:left !important;' nowrap>日月光投控</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>13:52:34</td>
+<td style='text-align:left !important;'>代子公司USI Asteelflash USA Corp.公告擬取得不動產使用權資產</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='135234';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3711';document.fm_t05sr01_1.skey.value='3711202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2328</td>
+<td style='text-align:left !important;' nowrap>廣宇</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>13:51:40</td>
+<td style='text-align:left !important;'>本公司受邀參加群益金鼎證券所舉辦之法人說明會，說明本公司營運概況。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='135140';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2328';document.fm_t05sr01_1.skey.value='2328202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>5878</td>
+<td style='text-align:left !important;' nowrap>台名</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>13:49:26</td>
+<td style='text-align:left !important;'>代重要子公司利可安保險經紀人股份有限公司公告董事會
+決議115年度第3季盈餘不分配。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='134926';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='5878';document.fm_t05sr01_1.skey.value='5878202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2903</td>
+<td style='text-align:left !important;' nowrap>遠百</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>13:46:33</td>
+<td style='text-align:left !important;'>本公司功能性委員會委員異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='5';document.fm_t05sr01_1.SPOKE_TIME.value='134633';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2903';document.fm_t05sr01_1.skey.value='2903202611025';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>2903</td>
+<td style='text-align:left !important;' nowrap>遠百</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>13:45:39</td>
+<td style='text-align:left !important;'>公告本公司獨立董事逝世解任</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='4';document.fm_t05sr01_1.SPOKE_TIME.value='134539';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2903';document.fm_t05sr01_1.skey.value='2903202611024';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2035</td>
+<td style='text-align:left !important;' nowrap>唐榮公司</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>13:43:11</td>
+<td style='text-align:left !important;'>本公司法人股東臺灣銀行董事代表人辭任公告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='134311';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2035';document.fm_t05sr01_1.skey.value='2035202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>7704</td>
+<td style='text-align:left !important;' nowrap>明遠精密</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>13:39:36</td>
+<td style='text-align:left !important;'>本公司有價證券近期多次達公布注意交易資訊標準，
+故公告相關訊息，以利投資人區別暸解</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='133936';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7704';document.fm_t05sr01_1.skey.value='7704202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>7704</td>
+<td style='text-align:left !important;' nowrap>明遠精密</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>13:38:47</td>
+<td style='text-align:left !important;'>公告本公司技術長任命案</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='133847';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7704';document.fm_t05sr01_1.skey.value='7704202610302';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>7704</td>
+<td style='text-align:left !important;' nowrap>明遠精密</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>13:38:06</td>
+<td style='text-align:left !important;'>本公司董事會通過115年第三季合併財務報告</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='133806';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7704';document.fm_t05sr01_1.skey.value='7704202610301';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6689</td>
+<td style='text-align:left !important;' nowrap>伊雲谷</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>11:29:59</td>
+<td style='text-align:left !important;'>澄清媒體有關本公司之報導</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='112959';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6689';document.fm_t05sr01_1.skey.value='6689202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>1454</td>
+<td style='text-align:left !important;' nowrap>台富</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>10:03:16</td>
+<td style='text-align:left !important;'>115年度第三季財務報告預計提報董事會決議日期</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='100316';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='1454';document.fm_t05sr01_1.skey.value='1454202608071';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2317</td>
+<td style='text-align:left !important;' nowrap>鴻海</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>10:03:02</td>
+<td style='text-align:left !important;'>說明媒體報導</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='100302';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2317';document.fm_t05sr01_1.skey.value='2317202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>7909</td>
+<td style='text-align:left !important;' nowrap>鈺祥</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>10:02:36</td>
+<td style='text-align:left !important;'>澄清媒體報導</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='100236';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='7909';document.fm_t05sr01_1.skey.value='7909202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>3018</td>
+<td style='text-align:left !important;' nowrap>隆銘綠能</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>08:33:29</td>
+<td style='text-align:left !important;'>公告本公司更正副執行長異動</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='83329';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='3018';document.fm_t05sr01_1.skey.value='3018202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>5346</td>
+<td style='text-align:left !important;' nowrap>力晶</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>07:59:39</td>
+<td style='text-align:left !important;'>補充公告本公司第一批次買回庫藏股相關事宜</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='2';document.fm_t05sr01_1.SPOKE_TIME.value='75939';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='C5346';document.fm_t05sr01_1.skey.value='C5346202611022';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>2072</td>
+<td style='text-align:left !important;' nowrap>世紀能源</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>07:00:03</td>
+<td style='text-align:left !important;'>公告本公司名稱由「世紀離岸風電設備股份有限公司」更名
+為「世紀能源設備股份有限公司」，公告期間：115年8月26日至
+115年11月25日。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='70003';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='2072';document.fm_t05sr01_1.skey.value='2072202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>6949</td>
+<td style='text-align:left !important;' nowrap>沛爾生醫*-創</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>07:00:03</td>
+<td style='text-align:left !important;'>公告本公司股票面額由「新台幣10元」變更為「新台幣0.5元」，
+公告期間：115年08月06日至115年11月05日。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='70003';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6949';document.fm_t05sr01_1.skey.value='6949202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='even'>
+<td>6696</td>
+<td style='text-align:left !important;' nowrap>仁新*</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>07:00:03</td>
+<td style='text-align:left !important;'>公告本公司股票面額由「新台幣10元」變更為「新台幣1元」，
+公告期間：115年8月5日至115年11月4日。</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='70003';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='6696';document.fm_t05sr01_1.skey.value='6696202611021';openWindow(this.form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>4580</td>
+<td style='text-align:left !important;' nowrap>捷流閥業</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>06:36:17</td>
+<td style='text-align:left !important;'>公告本公司鑄造廠(觀音廠)火災事件說明</td>
+<td><input type='button' value='詳細資料' onclick="document.fm_t05sr01_1.SEQ_NO.value='1';document.fm_t05sr01_1.SPOKE_TIME.value='63617';document.fm_t05sr01_1.SPOKE_DATE.value='20261102';document.fm_t05sr01_1.COMPANY_ID.value='4580';document.fm_t05sr01_1.skey.value='4580202611021';openWindow(this.form ,'');">
+</td></tr>
+</table></form><br>
+<form action='/mops/web/ajax_t59sb01' name='t59sb01_form' id='t59sb01_form' method='post' onsubmit='return false;'>
+<input type='hidden' name='firstin' value='true' />
+<input type=hidden name=co_id>
+<input type=hidden name='colorchg' value=''>
+<input type=hidden name='TYPEK' value='all'>
+<input type=hidden name='YEAR' value='115'>
+<input type=hidden name='MONTH' value='11'>
+<input type=hidden name='SDAY' value='20261102'>
+<input type=hidden name='EDAY' value='20261102'>
+<input type=hidden name=DATE1>
+<input type=hidden name=SKEY>
+<input type=hidden name=step value='2b'>
+<table class='hasBorder' align='center'>
+<tr class='tblHead'>
+<th nowrap>公司代號</th>
+<th nowrap>公司簡稱</th>
+<th nowrap>公告日期</th>
+<th nowrap>公告時間</th>
+<th nowrap>主旨</th>
+<th nowrap>&nbsp;</th>
+</tr>
+<tr class='odd'>
+<td>912000</td>
+<td style='text-align:left !important;' nowrap>晨訊科-DR</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:54:14</td>
+<td style='text-align:left !important;'>翌日披露報表：股份發行人-已發行股份或庫存股份變動、股份購回及/或在場內出售庫存股份</td>
+<td><input type='button' value='詳細資料' onclick="document.t59sb01_form.action='ajax_t59sb01';document.t59sb01_form.co_id.value='912000';document.t59sb01_form.SKEY.value='2';document.t59sb01_form.DATE1.value='20261102';openWindow(document.t59sb01_form ,'');">
+</td></tr>
+<tr class='odd'>
+<td>9110</td>
+<td style='text-align:left !important;' nowrap>越南控-DR</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:34:07</td>
+<td style='text-align:left !important;'>股份發行人及根據<<上市規則>>第十九B章上市的香港預託證券發行人的證券變動月報表- 截至2026年10月31日</td>
+<td><input type='button' value='詳細資料' onclick="document.t59sb01_form.action='ajax_t59sb01';document.t59sb01_form.co_id.value='9110';document.t59sb01_form.SKEY.value='2';document.t59sb01_form.DATE1.value='20261102';openWindow(document.t59sb01_form ,'');">
+</td></tr>
+<tr class='even'>
+<td>912000</td>
+<td style='text-align:left !important;' nowrap>晨訊科-DR</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:32:23</td>
+<td style='text-align:left !important;'>股份發行人及根據《上市規則》第十九B章上市的香港預託證券發行人的證券變動月報表-截至2026年10月31日</td>
+<td><input type='button' value='詳細資料' onclick="document.t59sb01_form.action='ajax_t59sb01';document.t59sb01_form.co_id.value='912000';document.t59sb01_form.SKEY.value='1';document.t59sb01_form.DATE1.value='20261102';openWindow(document.t59sb01_form ,'');">
+</td></tr>
+<tr class='even'>
+<td>9110</td>
+<td style='text-align:left !important;' nowrap>越南控-DR</td>
+<td style='text-align:left !important;'>115/11/02</td>
+<td style='text-align:left !important;'>16:32:02</td>
+<td style='text-align:left !important;'>董事會會議通知</td>
+<td><input type='button' value='詳細資料' onclick="document.t59sb01_form.action='ajax_t59sb01';document.t59sb01_form.co_id.value='9110';document.t59sb01_form.SKEY.value='1';document.t59sb01_form.DATE1.value='20261102';openWindow(document.t59sb01_form ,'');">
+</td></tr>
+</table></form><br>
+<center><form action='/mops/web/t05st02' method='post' onsubmit='return false;' name='fm'>
+<input type='hidden' name='step' value='0'>
+<input type='hidden' name='newstuff' value='1'>
+<input type='hidden' name='firstin' value='1' >
+<input type='hidden' name='year' value='115' >
+<input type='hidden' name='month' value='11'>
+<input type='hidden' name='day' value='01' >
+<input type='button' value='前一日資料（市場別：全體公司）' onclick='submit();'>
+</form></center>
+<script>setInterval("ajax1(document.fm_t05sr01_1_1,'table01');",180000);</script>
+</div>
+
+  <br></div>
+</td></tr></table>
+</DIV></tr>
+</table>
+</div>
+
+
+<div id="footer">
+   <table width="100%" border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <th>
+		<div class="text1" id="text1" align="center">
+			<a href='https://www.stockvote.com.tw/' target='_blank'>電子投票</a>│
+			<a href='http://www.sfb.gov.tw/Layout/main_ch/index.aspx?frame=5' target='_blank'>不繼續公開發行</a>│
+			<a href='/server-java/t39sb01' target='_blank'>市場公告</a>│
+			
+			
+			
+			<a href='https://webline.sfi.org.tw/CGE/' target='_blank'>公司治理評鑑</a>│
+
+
+			
+			
+			
+			<a href='/mops/web/t146sb08'>網站地圖</a>│
+			<a href='/nas/MOPS_HandBook.doc' target='_MOPS_handbook'>網站使用說明</a>
+			<div class="text1" id="text1" align="center" height="80">
+			<a href=#>投資人服務中心(02)2792-8188</a> <u><a href='http://Suggestionbox.twse.com.tw' target='_blank'>聯絡我們</a></u>
+			</div>
+
+			
+			
+			
+			
+			
+			
+			
+			
+		</div>
+	</th>
+  </tr>
+</table>
+</div>
+</td></tr></table></center>
+</body>
+
+
+
+<script>
+	function checkAutoRunScript(){
+		if (document.autoForm!=null && document.autoForm!=undefined && document.autoForm.run.value==''){
+			ajax1(document.autoForm,'table01');
+			document.querySelector('form[name=autoForm]').remove();
+		}
+
+		// if (document.autoRunScript!=null && document.autoRunScript!=undefined && document.autoRunScript.run.value!=''){
+		// 	var s = document.autoRunScript.run.value;
+		// 	document.autoRunScript.run.value = '';
+		// 	new function(){
+		// 		eval(s);
+		// 	};
+		// }
+		if (document.autoRunScript!=null && document.autoRunScript!=undefined && document.autoRunScript.run!=null && document.autoRunScript.run.value!=''){
+			let s = document.autoRunScript.run.value;
+			s = htmlEncode(s);
+
+			let script = document.createElement("script");
+			script.innerText = s;
+			document.body.appendChild(script);
+
+			document.querySelector('form[name=autoRunScript] > input[name=run]').remove()
+		}
+	}
+
+	setInterval("checkAutoRunScript()",100);
+</script>
+<!-- 2021.09.07 start -->
+<script>
+	function htmlEncode(value){
+		return value;
+	}
+	function listinnerli(){
+		if(document.querySelector('#mm0'))document.querySelector('#mm0').innerHTML = menu0;
+		if(document.querySelector('#mm1'))document.querySelector('#mm1').innerHTML = menu1;
+		if(document.querySelector('#mm2'))document.querySelector('#mm2').innerHTML = menu2;
+		if(document.querySelector('#mm3'))document.querySelector('#mm3').innerHTML = menu3;
+		if(document.querySelector('#mm4'))document.querySelector('#mm4').innerHTML = menu4;
+		if(document.querySelector('#mm5'))document.querySelector('#mm5').innerHTML = menu5;
+		if(document.querySelector('#mm6'))document.querySelector('#mm6').innerHTML = menu6;
+		if(document.querySelector('#mm7'))document.querySelector('#mm7').innerHTML = menu7;
+		if(document.querySelector('#mm8'))document.querySelector('#mm8').innerHTML = menu8;
+		if(document.querySelector('#mm9'))document.querySelector('#mm9').innerHTML = menu9;
+		if(document.querySelector('#mm10'))document.querySelector('#mm10').innerHTML = menu10;
+		if(document.querySelector('#mm11'))document.querySelector('#mm11').innerHTML = menu11;
+		if(document.querySelector('#mm12'))document.querySelector('#mm12').innerHTML = menu12;
+	}
+	window.onload = listinnerli;
+</script> 
+<!-- 2021.09.07 end -->
+</html>

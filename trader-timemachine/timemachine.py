@@ -161,7 +161,7 @@ def _sleep(seconds):
 
 def _get(url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with tw.urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8", "replace")
 
 

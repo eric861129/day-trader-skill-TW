@@ -38,6 +38,7 @@ import hashlib
 import json
 import os
 import re
+import ssl
 import sys
 import urllib.request
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
@@ -153,7 +154,7 @@ class Calendar(object):
         """One plain line when the holiday list for d's year is not loaded, else ''."""
         if self.known(d.year):
             return ""
-        return ("%d 年的休市日不在清單裡：執行 scan.py universe 更新（證交所公布後才抓得到），"
+        return ("%d 年的休市日不在清單裡：執行 alerts.py calendar --update 或 scan.py universe 更新（證交所公布後才抓得到），"
                 "或在 trader/config.json 的 extra_closed 自己加上" % d.year)
 
 
@@ -661,9 +662,23 @@ def fetch_mis(pairs, get=None):
 
 # ---------------------------------------------------------------- files and output
 
+def tls_context():
+    """The default TLS checks without VERIFY_X509_STRICT. Python 3.13 turned that flag on, and the
+    TWSE, TPEx, MIS and MOPS certificates have no Subject Key Identifier, so strict mode rejects
+    them (checked 2026-11-02 on Python 3.14). The chain and the host name are still verified."""
+    ctx = ssl.create_default_context()
+    ctx.verify_flags &= ~getattr(ssl, "VERIFY_X509_STRICT", 0)
+    return ctx
+
+
+def urlopen(req, timeout=20):
+    """urllib.request.urlopen with tls_context(): every tool opens URLs through this."""
+    return urllib.request.urlopen(req, timeout=timeout, context=tls_context())
+
+
 def http_get(url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8", "replace")
 
 

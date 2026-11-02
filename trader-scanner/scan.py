@@ -154,13 +154,13 @@ def watch_day(now_utc, cal=None):
 
 def http_get(url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with tw.urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8", "replace")
 
 
 def http_get_bytes(url, timeout=120):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with tw.urlopen(req, timeout=timeout) as r:
         return r.read()
 
 

@@ -1,0 +1,128 @@
+
+
+
+<html>
+<head>
+	<title>公開資訊觀測站</title>
+	
+	
+	<link href="css/css2.css" rel="stylesheet" type="text/css" Media="Screen"/> 
+	
+	<script type="text/javascript" src="js/mops2.js"></script>
+	
+	<script src='js/outerScript/percentage.js'></script>
+	
+</head>
+
+<body>
+
+
+<div id="div01" >
+<center>
+<b>公司代號：</b>2303　　
+<b>公司名稱：</b>
+聯電<br><br>
+<form name='form_t100sb07_1' action='/mops/web/ajax_t100sb07_1' method='post' onsubmit='return false;'>
+<input type='hidden' name='step' value='0'>
+<input type='hidden' name='firstin' value='true'>
+<input type='hidden' name='TYPEK' value='sii'>
+<input type='hidden' name='colorchg' value=''>
+<input type='hidden' name='co_id'>
+<input type='hidden' id='URL' name='URL'>
+<input type='hidden' id='from' name='from'>
+<input type='hidden' id='COMPANY_ID' name='COMPANY_ID'>
+<input type='hidden' id='SEQ_NO' name='SEQ_NO'>
+<table class='hasBorder' >
+<tr><th class='tblHead' rowspan='5'>1</th><td class='tblHead' colspan='2' style='text-align:left !important;'><b>召開法人說明會日期：</b></td>
+<td style='text-align:left !important;'><font color=blue>115/10/28</font>時間：
+<font color=blue>17</font> 點 <font color=blue>0</font> 分 (24小時制)</td></tr><tr><td class='tblHead' colspan='2' style='text-align:left !important;'><b>召開法人說明會地點：</b></td>
+<td style='text-align:left !important;'><font color=blue>線上法說會</font></td></tr><tr><td class='tblHead' colspan='2' style='text-align:left !important;'><b>法人說明會擇要訊息：</b></td>
+<td style='text-align:left !important;'><font color=blue>本公司2026年第三季財務暨營運報告。</font></td></tr><tr><td class='tblHead' rowspan='2' style='text-align:left !important;'><b>法人說明會簡報內容</b></td>
+<td class='tblHead' style='text-align:left !important;'><b>中文檔案：</b></td>
+<td style='text-align:left !important;'><a href='/nas/STR/230320261028M001.pdf' download><font color=blue><u>230320261028M001.pdf</u></font></a></td></tr>
+<tr><td class='tblHead' style='text-align:left !important;'><b>英文檔案：</b></td>
+<td style='text-align:left !important;'><a href='/nas/STR/230320261028E001.pdf' download><font color=blue><u>230320261028E001.pdf</u></font></a></td></tr>
+<tr><th class='tblHead' rowspan='2'>2</th><td class='tblHead' colspan='2' align='left' rowspan='2' ><b>公司網站是否有提供法人說明會相關資訊：</b></td>
+<td align='left'>○無 ●有</td></tr>
+<tr><td style='text-align:left !important;' ><a target='_blank' href='http://www.umc.com'><font color=blue><u>http://www.umc.com</u></font></a></td></tr><tr>
+<th class='tblHead' rowspan='1'>3</th>
+<th class='tblHead' colspan=2 rowspan='1' style='text-align: left;'>影音連結資訊：</th>
+<td style='text-align:left !important;' >
+法說會影音連結資訊：<a target='_blank' href='https://www.umc.com/zh-TW/Download/quarterly_results/QuarterlyResultsDetail/2026/2026Q3'><font color=blue><u>https://www.umc.com/zh-TW/Download/quarterly_results/QuarterlyResultsDetail/2026/2026Q3</u></font></a>
+</td>
+</tr>
+<tr><th class='tblHead'>4</th><td class='tblHead' colspan='2' align='left' ><b>其他應敘明事項：</b></td>
+<td align='left'><font color=blue><pre>無</pre></font></td></tr></table><br><br>
+</form>
+</center>
+
+</div>
+
+
+</body>
+
+
+
+<script>
+	try {
+		if(!document.querySelector('#table01')){
+			var table01 = document.createElement("div");
+			table01.id = "table01"; 
+			document.body.appendChild(table01);
+			if(document.querySelector("#div01")){
+				table01.appendChild(div01);
+			};
+		};
+
+		if (document.autoForm!=null && document.autoForm!=undefined && document.autoForm.run.value==''){
+			ajax1(document.autoForm,'div01');
+			document.querySelector('form[name=autoForm]').remove();
+		};
+
+		if (document.autoForm1!=null && document.autoForm1!=undefined && document.autoForm1.run.value==''){
+			ajax1(document.autoForm1,'div01');
+			document.querySelector('form[name=autoForm1]').remove();
+		};
+
+		if (document.autoRunScript!=null && document.autoRunScript!=undefined && document.autoRunScript.run!=null && document.autoRunScript.run.value!=''){
+			let s = document.autoRunScript.run.value;
+			let script = document.createElement("script");
+
+			script.innerText = s;
+			document.body.appendChild(script);
+			document.querySelector('form[name=autoRunScript] > input[name=run]').remove();
+		};
+
+		if (document.autoRunScript1!=null && document.autoRunScript1!=undefined){
+			if (document.autoRunScript1.count!=null && document.autoRunScript1.count!=undefined && document.autoRunScript1.count.value!=''){
+				var count = parseInt(document.autoRunScript1.count.value);
+				for (var i=0;i<count;i++){
+					var run = eval("document.autoRunScript1.run"+i);
+					if (run!=null && run!=undefined && run.value!=''){
+						var s = run.value;
+
+						var script = document.createElement("script");
+						script.textContent = s;
+						document.querySelector("body").appendChild(script);
+
+						run.remove();
+					};
+				};
+			}else if (document.autoRunScript1.run!=null && document.autoRunScript1.run!=undefined && document.autoRunScript1.run.value!=''){
+				var s = document.autoRunScript1.run.value;
+				s = htmlEncode(s);
+				var script = document.createElement("script");
+				script.textContent = s;
+				document.querySelector("body").appendChild(script);
+
+				document.querySelector('form[name=autoRunScript1] > input[name=run]').remove();
+			};
+		};
+	} catch (error) {
+		console.error("Script Error:", error);
+	};
+</script>
+
+
+
+</html>

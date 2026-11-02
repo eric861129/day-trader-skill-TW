@@ -26,7 +26,7 @@ CONTRACT_CFG = {
     "day_trade_enabled": False, "day_trade_quota_twd": None, "allow_overnight": False,
     "allow_disposition": False, "fee_discount": 1, "fee_min_twd": 20, "fee_min_odd_twd": 1,
     "extra_closed": {}, "broker_name": "", "paper": True, "blocked": [], "allow_options": False,
-    "allow_margin": False, "allow_short": False, "sec_user_agent": "Your Name you@example.com",
+    "allow_margin": False, "allow_short": False,
 }
 # the example split on 2026-11-02's closes: NT$300,000, 10 % kept in cash
 SPLIT = {"0050": 1041, "2330": 34, "2303": 372, "6488": 54}
