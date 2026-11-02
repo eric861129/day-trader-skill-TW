@@ -1,5 +1,6 @@
 import datetime
 import filecmp
+import json
 import os
 import tempfile
 import unittest
@@ -200,6 +201,76 @@ class Costs(unittest.TestCase):
         self.assertEqual(odd["buy_fee"], 19)                     # odd lots: NT$1 minimum by default
         self.assertEqual(odd["tax"], 70)                         # odd lots cannot be day-traded: 0.3 %
         self.assertEqual(tw.cost_rate("2330", True, None, day), Decimal("0.004350"))
+
+    def test_the_reel_loss_at_the_stop(self):
+        day = datetime.date(2026, 11, 2)
+        # 聯電 2303: entry 110.0, stop 108.5, target 111.5
+        self.assertEqual(tw.loss_at_stop(110.0, 108.5, 1000, "2303", True, None, day),
+                         {"move": 1500.0, "costs": 472, "total": 1972.0})    # fees 156 + 154, tax 162
+        self.assertEqual(tw.loss_at_stop(110.0, 108.5, 2000, "2303", True, None, day)["total"], 3947.0)
+        self.assertEqual(tw.net_result(110.0, 111.5, 1000, "2303", True, None, day),
+                         {"move": 1500.0, "costs": 481, "net": 1019.0})
+        overnight = tw.loss_at_stop(110.0, 108.5, 300, "2303", False, None, day)
+        self.assertEqual(overnight, {"move": 450.0, "costs": 190, "total": 640.0})   # 47 + 46 + 97
+
+
+class Tickets(unittest.TestCase):
+    def ticket(self, **kw):
+        t = {"symbol": "2303", "market": "TWSE", "name": "聯電", "side": "buy", "lot": "board", "qty": 1000,
+             "price_type": "market", "tif": "IOC", "trade": "day_trade", "stop": "108.5", "target": "111.5",
+             "why": "開盤區間突破", "plan": {"entry": 110.0}}
+        t.update(kw)
+        return t
+
+    def test_the_reel_fingerprint(self):
+        with open(os.path.join(FIX, "trader-risk", "orders-2303.json"), encoding="utf-8") as fh:
+            order = json.load(fh)["orders"][0]
+        self.assertEqual(tw.fingerprint(order), "63bf9f525d5603a5")
+        self.assertEqual(tw.fingerprint(order), tw.fingerprint(self.ticket()))
+
+    def test_notes_do_not_change_it_the_ticket_does(self):
+        base = tw.fingerprint(self.ticket())
+        self.assertEqual(base, tw.fingerprint(self.ticket(name="", why="改寫理由", plan={})))
+        for change in ({"qty": 2000}, {"tif": "ROD"}, {"stop": "108.0"}, {"trade": "cash"}, {"price": "110.0"}):
+            self.assertNotEqual(base, tw.fingerprint(self.ticket(**change)), change)
+        self.assertEqual(base, tw.fingerprint(self.ticket(price=None)))
+
+    def test_price_text(self):
+        self.assertEqual(tw.price_text(110), "110.0")
+        self.assertEqual(tw.price_text(2330), "2330")
+        self.assertEqual(tw.price_text(104.1, "0050"), "104.10")
+
+
+class Lists(unittest.TestCase):
+    def rows(self, folder, name):
+        with open(os.path.join(FIX, folder, name), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_day_trade_lists(self):
+        twse = self.rows("twmarket", "twse-daytrade-2026-11-02.json")
+        tpex = self.rows("twmarket", "tpex-daytrade-2026-11-02.json")
+        self.assertEqual((tw.list_kind(twse), tw.list_kind(tpex)), ("daytrade", "daytrade"))
+        lst = tw.parse_daytrade(twse + tpex)
+        self.assertEqual(lst["date"], datetime.date(2026, 11, 2))
+        self.assertEqual(len(lst["codes"]), 2080)
+        self.assertEqual(lst["codes"]["2303"], {"name": "聯電", "market": "TWSE", "sell_first": True})
+        self.assertEqual(lst["codes"]["6488"]["market"], "TPEx")
+        self.assertIn("00631L", lst["codes"])
+        self.assertEqual(sum(1 for v in lst["codes"].values() if not v["sell_first"]), 11)
+        self.assertEqual(tw.parse_daytrade([]), {"date": None, "codes": {}})
+
+    def test_disposition_stocks_cannot_be_day_traded(self):
+        punish = self.rows("trader-scanner", "twse-punish-2026-11-02.json")
+        disposal = self.rows("trader-scanner", "tpex-disposal-2026-11-02.json")
+        self.assertEqual((tw.list_kind(punish), tw.list_kind(disposal)), ("disposition", "disposition"))
+        act = tw.active_disposition(tw.parse_disposition(punish, disposal), datetime.date(2026, 11, 2))
+        self.assertEqual(len(act), 14)
+        self.assertIn("4526", act)
+        codes = tw.parse_daytrade(self.rows("twmarket", "twse-daytrade-2026-11-02.json")
+                                  + self.rows("twmarket", "tpex-daytrade-2026-11-02.json"))["codes"]
+        self.assertEqual([c for c in act if c in codes], [])
+        self.assertIsNone(tw.list_kind([{"Code": "2330"}]))
+        self.assertIsNone(tw.list_kind({}))
 
 
 if __name__ == "__main__":

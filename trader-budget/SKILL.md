@@ -1,166 +1,194 @@
 ---
 name: trader-budget
 description: >-
-  Budget Manager. Sizes every position to your budget and your max loss per
-  trade. Reads the trade plan from trader-exit (entry, stop, target), finds
-  the whole shares that fit inside four limits (max loss per trade, position
-  cap, max order, cash after your buffer), says which limit decided it, and
-  writes ONE bracket order (entry, stop-loss, take-profit) to
-  trader/orders.json in the exact shape of Alpaca's place_stock_order. A stop
-  too far away for your max loss is a plain refusal, not a smaller order.
-  Nothing is placed. Use when the user says "how many shares", "size this
-  trade", "how much should I buy", "I have $5,000", "I only want to risk $50
-  a trade", "set my rules", "keep 10% in cash", or after /trader-exit writes
-  a plan.
-argument-hint: "[budget in dollars]"
+  部位管理（Budget Manager）。依你的預算和單筆最大虧損算出要買幾張。讀 trader-exit
+  的交易計畫（進場、停損、停利），在五個上限裡找出最多能買的整張數：單筆最大虧損
+  （停損出場的價差加手續費和證交稅）、部位上限、單筆金額上限、扣掉保留現金後的
+  可用現金、當沖額度，說明是哪一個上限決定張數，再把一張委託單提案寫進
+  trader/orders.json（代號、整股或零股、股數、市價或限價、ROD/IOC/FOK、現股當沖、
+  停損、停利）。停損太遠、一張都買不起就直接拒絕，不會偷偷縮小停損。零股不能當沖，
+  要用零股就是留倉，加 --odd-lot。什麼都不會下單。使用時機：「買幾張」「幫我算部位」
+  「要買多少」「一筆最多虧 3000」「我有 30 萬」「保留一成現金」「設定我的規則」
+  「零股可以買多少」，或 /trader-exit 寫好計畫之後。也接受 "how many shares"、
+  "size this trade"。
+argument-hint: "[預算，新台幣]"
 ---
 
 # trader-budget
 
-The Budget Manager turns a plan ("buy TSLA at 364.18, stop 358.32") into an
-exact order ("buy 8 shares"), inside rules the user sets once. The stop
-decides the size: the further away the stop, the fewer shares. It writes a
-proposal only. trader-risk checks it and trader-broker asks the user yes or
-no. Day trading loses most people money. Sizing to a max loss keeps each
-loss small; it does not make a trade win.
+部位管理把一份計畫（「聯電 110.0 進場，停損 108.5」）變成一張確切的委託單
+（「買 1 張」），而且是在使用者一次設好的規則裡。停損決定張數：停損越遠，能買的
+張數越少。台股還多一件事：手續費和證交稅。停損很近的時候，成本會吃掉一大塊風險，
+所以算張數一定要把成本算進去。這個 skill 只寫提案：trader-risk 檢查，trader-broker
+問使用者 yes 或 no，最後由使用者自己在券商 App 送出。大多數當沖的人是賠錢的。
+用單筆最大虧損控制部位，只能讓每次虧損變小，不會讓交易變成會贏。
 
-`${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
+下面的 `${CLAUDE_SKILL_DIR}` 是這個 skill 的資料夾（這份 SKILL.md 所在的地方）。
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/size.py"                        # trader/plan.json + trader/config.json
-python3 "${CLAUDE_SKILL_DIR}/size.py" --write                # write trader/orders.json
-python3 "${CLAUDE_SKILL_DIR}/size.py" --limit --write        # a limit order at the plan's entry
-python3 "${CLAUDE_SKILL_DIR}/size.py" --limit 364.00 --json  # a limit order at 364.00
-python3 "${CLAUDE_SKILL_DIR}/size.py" --weights AAPL=40,KO=60 --config split.json   # weights mode, below
+python3 "${CLAUDE_SKILL_DIR}/size.py"                         # trader/plan.json + trader/config.json
+python3 "${CLAUDE_SKILL_DIR}/size.py" --write                 # 寫出 trader/orders.json
+python3 "${CLAUDE_SKILL_DIR}/size.py" --limit --write         # 限價 ROD，價格用計畫的進場價
+python3 "${CLAUDE_SKILL_DIR}/size.py" --limit 109.5 --json    # 限價 ROD 109.5
+python3 "${CLAUDE_SKILL_DIR}/size.py" --odd-lot               # 盤中零股（留倉，不是當沖）
+python3 "${CLAUDE_SKILL_DIR}/size.py" --targets "${CLAUDE_SKILL_DIR}/targets.example.json" --prices trader/prices.json   # 權重模式
 ```
 
-`--now "2026-10-19 10:15"` pins the clock (New York time). A plan for
-another day is refused: make a new one with trader-exit.
+`--now "2026-11-02 09:20"` 固定時鐘（台北時間）。計畫是別天的就拒絕：用 trader-exit 重新規劃。
 
-## What it reads and writes
+## 讀什麼、寫什麼
 
-| file | what |
+| 檔案 | 內容 |
 | --- | --- |
-| `trader/config.json` | the rules (start from `config.example.json` in this folder) |
-| `trader/plan.json` | the trade: entry, stop, target, setup, flat-by time (trader-exit writes it) |
-| `trader/prices.json` | optional: a fresh price above the plan's entry means a bigger risk (trader-alerts writes it) |
-| `trader/portfolio.json` | optional: its cash caps the size (trader-broker keeps it) |
-| `trader/orders.json` | the one proposed bracket order it writes with `--write` |
+| `trader/config.json` | 規則（從這個資料夾的 `config.example.json` 複製） |
+| `trader/plan.json` | 這筆交易：進場、停損、停利、漲跌停、最晚出場時間（trader-exit 寫的） |
+| `trader/prices.json` | 選用：比計畫進場價高的新鮮價格代表風險變大（trader-alerts 寫的） |
+| `trader/portfolio.json` | 選用：裡面的現金會限制張數（trader-broker 記錄的） |
+| `trader/orders.json` | `--write` 寫出的一張委託單提案 |
 
-## Step 1: set the rules once
+## 第一步：一次設好規則
 
-If `trader/config.json` does not exist, copy `config.example.json` into
-`trader/config.json` and ask the user for each value in plain words:
+如果 `trader/config.json` 不存在，把 `config.example.json` 複製成 `trader/config.json`，
+再用白話一項一項問使用者：
 
-- **budget**: how much money this is for. Only money they can afford to lose.
-- **cash_buffer_pct**: how much always stays in cash (default 10).
-- **max_loss_per_trade_usd**: the most one trade may lose if the stop fills at the stop (default 50).
-- **max_position_pct**, **max_order_usd**, **min_order_usd**: the biggest position (75% of the
-  budget), the biggest order ($4,000) and the smallest order ($5).
-- The day limits trader-risk enforces: **max_daily_loss_usd** (150), **max_trades_per_day** (3),
-  **min_reward_risk** (1.0), **require_stop** (true), **no_entries_before** / **no_entries_after**
-  ("09:45" / "15:30") and **flat_by** ("15:55"), all New York time.
-- **blocked**: tickers they never want to trade.
-- Keep **paper** true until they have watched it work on a paper account.
+- **budget**：這筆錢有多少（新台幣）。只放輸得起的錢。
+- **cash_buffer_pct**：永遠留在現金的比例（預設 10）。
+- **max_loss_per_trade_twd**：一筆交易在停損出場時最多可以虧多少，含手續費和證交稅（預設 3,000）。
+- **max_position_pct**、**max_order_twd**、**min_order_twd**：最大部位（預算的 75%）、單筆最大金額
+  （NT$250,000）、單筆最小金額（NT$1,000）。
+- **day_trade_enabled**：有沒有在券商簽好現股當沖（開戶滿三個月、近一年成交十筆以上、簽風險預告書和
+  概括授權同意書；有信用戶的不受前兩項限制）。預設 false，trader-risk 會擋下當沖單，直到使用者確認並改成 true。
+- **day_trade_quota_twd**：券商給的當沖額度（不知道就留 null）。
+- **fee_discount**、**fee_min_twd**、**fee_min_odd_twd**：手續費折扣（6 折寫 0.6）、整股最低手續費
+  （NT$20）、零股最低手續費（NT$1，各券商不同）。
+- trader-risk 用的每日規則：**max_daily_loss_twd**（9,000）、**max_trades_per_day**（3）、
+  **min_reward_risk**（1.0）、**min_reward_risk_net**（扣成本後的最低報酬風險比，null 代表不檢查）、
+  **require_stop**（true）、**no_entries_before** / **no_entries_after**（"09:15" / "13:00"）、
+  **flat_by**（"13:20"），都是台北時間。
+- **allow_overnight**（false）：零股和任何留倉的買單都會被 trader-risk 擋下，除非改成 true。
+- **blocked**：永遠不想碰的代號。
+- **paper** 保持 true，直到使用者看過整個流程在模擬交易裡跑順。
 
-## Step 2: size the trade
+## 第二步：算張數
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/size.py" --write
 ```
 
-Whole shares only: Alpaca takes no fractions in a bracket order. The size is
-the smallest of four limits:
+當沖只能用整股（1 張 = 1,000 股）。張數取下面幾個上限裡最小的那個：
 
-| limit | shares |
+| 上限 | 張數 |
 | --- | --- |
-| max loss | `max_loss_per_trade_usd` / risk a share (entry minus stop) |
-| position cap | budget x `max_position_pct` / entry |
-| max order | `max_order_usd` / entry |
-| cash | (budget minus the cash buffer) / entry, never more than the cash in `trader/portfolio.json` |
+| 單筆最大虧損 | 停損出場的虧損（價差 + 買賣手續費 + 當沖證交稅 0.15%）不超過 `max_loss_per_trade_twd` 的最多張數 |
+| 部位上限 | 預算 x `max_position_pct` / 每張金額 |
+| 單筆金額上限 | `max_order_twd` / 每張金額 |
+| 可用現金 | （預算扣掉保留現金，也不超過 `trader/portfolio.json` 的現金）/（每張金額加買進手續費） |
+| 當沖額度 | `day_trade_quota_twd` / 每張金額（有設才算） |
 
-The entry it sizes at: the limit price with `--limit`. For a market order, the
-plan's entry, or the price in `trader/prices.json` if it is fresh (under 15
-minutes old) and higher. A price that ran up since the plan means a bigger
-loss at the same stop, so fewer shares. A lower price never shrinks the risk.
+現金為什麼要算全額：當沖是 T+2 只交割價差，但如果當天賣不掉（跌停鎖死、忘了平倉），T+2 要付全額，
+付不出來就是違約交割。
 
-It refuses, and writes no order, when: the size is zero shares, the order is
-under the minimum, reward:risk is under `min_reward_risk`, the stop is not
-below the entry, the target is not above it (the move already happened), the
-plan is for another day, the ticker is blocked, or the plan is a short. Say
-the reason to the user in one line.
+計算用的進場價：`--limit` 時是限價。市價單用計畫的進場價；如果 `trader/prices.json` 的價格是新鮮的
+（15 分鐘內）而且比較高，就用那個價格（對齊升降單位，往上取）。價格漲上去，同一個停損的風險就變大，
+張數就變少。價格變低不會讓風險變小。
 
-## Step 3: show the user
+預設是市價 IOC：沒成交的部分直接取消。市價 ROD 沒成交的部分會掛在漲停價等到收盤，所以不用。
+`--limit` 是限價 ROD，價格要在升降單位上，也要在今天的漲跌停之間。
 
-Show the four limits, which one decided the size, the shares, the dollars
-and the max loss at the stop. Say plainly that a stop is an order, not a
-promise: in a fast market it can fill below the stop. Then hand over to
-`/trader-risk`.
+下面這些情況會拒絕，不寫任何委託單（結束代碼 1）：一張都買不起、低於最低單筆金額、報酬風險比低於
+`min_reward_risk`（或設了 `min_reward_risk_net` 時，扣成本後低於它）、停損不在進場價下方、停利不在
+進場價上方（行情已經走完了）、計畫是別天的、代號在封鎖清單上、計畫是放空、進場價已經到漲停、停損在
+跌停價下方（今天價格到不了，停損等於沒設）。用一句話告訴使用者原因。
 
-## Example: the reel
+`"day_trade_enabled": false` 時照樣算、照樣寫，但會提醒：trader-risk 會擋下這張當沖單。
 
-TSLA on Monday 2026-10-19. Opening-range breakout: entry 364.18 at 10:15 AM,
-stop 358.32 (the opening-range midpoint), target 370.04 (1R). Risk 5.86 a
-share. The example config: $5,000 budget, 10% cash buffer, $50 max loss.
+## 零股（--odd-lot）
 
-| limit | the math | shares |
+零股不能當沖：今天買的零股最快下一個交易日才能賣。所以 `--odd-lot` 算的是留倉的買單：1 到 999 股、
+限價 ROD（盤中零股只接受限價 ROD，09:10 第一次撮合，之後每 5 秒一次），證交稅用一般稅率（股票 0.3%、
+ETF 0.1%），手續費用零股最低 `fee_min_odd_twd`。停損今天用不上，隔天開盤可能直接跳空跌破停損，虧損可能
+比算出來的大。trader-risk 會擋下它，除非設定檔的 `"allow_overnight"` 是 true。整股一張都買不起時，
+拒絕訊息會提到這個選項，但要不要留倉由使用者決定。
+
+## 第三步：給使用者看
+
+列出每個上限、哪一個決定張數、張數、金額，以及停損出場的最大虧損（分成價差和手續費加證交稅）。
+成本讓張數變少時，說出「不算成本可以買幾張」。清楚說停損是委託不是保證：急殺、跳空或跌停鎖死時，
+成交價可能比停損差，甚至賣不掉。然後交給 `/trader-risk`。
+
+## 範例：聯電 2026-11-02
+
+聯電 2303，2026-11-02（一）開盤區間突破：09:20 進場 110.0，停損 108.5（開盤區間中點，3 檔），
+停利 111.5（1R），漲跌停 122.5 / 100.5。每股風險 1.5。範例設定：預算 NT$300,000、保留現金 10%、
+單筆最大虧損 NT$3,000，並且 `"day_trade_enabled": true`。
+
+| 上限 | 算法 | 張數 |
 | --- | --- | --- |
-| max loss | $50 / 5.86 | **8 (decides it)** |
-| position cap | 75% of $5,000 = $3,750 / 364.18 | 10 |
-| max order | $4,000 / 364.18 | 10 |
-| cash | $5,000 minus $500 = $4,500 / 364.18 | 12 |
+| 單筆最大虧損 | NT$3,000：1 張停損出場約虧 NT$1,972（價差 NT$1,500 + 成本 NT$472） | **1（決定張數）** |
+| 部位上限 | 預算 NT$300,000 的 75% = NT$225,000 / 每張 NT$110,000 | 2 |
+| 單筆金額上限 | NT$250,000 / 每張 NT$110,000 | 2 |
+| 可用現金 | NT$300,000 扣保留現金 NT$30,000 = NT$270,000 / 每張 NT$110,156（含手續費） | 2 |
 
-8 shares = $2,913.44. Max loss at the stop: 8 x 5.86 = $46.88. It writes:
+不算成本的話，單筆最大虧損可以買 2 張（2 x 1,500 = 3,000）；算進手續費和證交稅，2 張停損出場要虧
+NT$3,947，只剩 1 張。1 張 = NT$110,000，買進手續費 NT$156。停損出場最多虧 NT$1,972：價差 NT$1,500，
+加手續費和證交稅 NT$472（買進手續費 156、賣出手續費 154、當沖證交稅 162）。報酬風險比 1.00，
+扣成本後 0.52。它寫出：
 
 ```json
-{"symbol": "TSLA", "side": "buy", "qty": "8", "type": "market", "time_in_force": "day",
- "order_class": "bracket", "take_profit_limit_price": "370.04", "stop_loss_stop_price": "358.32",
- "why": "opening-range breakout on TSLA: 8 shares, bound by your $50 max loss per trade (8 x 5.86 = $46.88 at the stop)",
- "plan": {"entry": 364.18, "stop": 358.32, "target": 370.04, "risk_per_share": 5.86, "max_loss": 46.88,
-          "setup": "orb", "entry_time": "10:15 AM", "flat_by": "15:55"}}
+{"symbol": "2303", "market": "TWSE", "name": "聯電", "side": "buy", "lot": "board", "qty": 1000,
+ "price_type": "market", "tif": "IOC", "trade": "day_trade", "stop": "108.5", "target": "111.5",
+ "why": "開盤區間突破，聯電 2303：1 張，由單筆最大虧損 NT$3,000 決定（停損出場約虧 NT$1,972，其中手續費和證交稅 NT$472）",
+ "plan": {"date": "2026-11-02", "setup": "orb", "entry": 110.0, "entry_time": "09:20", "stop": 108.5,
+          "target": 111.5, "risk_per_share": 1.5, "risk_ticks": 3, "max_loss": 1972.0, "cost_at_stop": 472,
+          "flat_by": "13:20", "prev_close": 111.5, "limit_up": 122.5, "limit_down": 100.5}}
 ```
 
-`why` and `plan` are notes for trader-risk and trader-broker. They are never
-sent to Alpaca. With the stop at 300.00 instead, one share would risk 64.18,
-more than the $50 max loss: no order. At 10:52 the real quote was 366.48, so
-the same plan sizes to 6 shares at 8.16 a share, and reward:risk falls to
-0.44: refused, because the move it was waiting for has mostly happened.
+`name`、`why`、`plan` 是給 trader-risk 和 trader-broker 看的說明；委託本身是前面那些欄位，trader-risk
+就是用它們算指紋。其他情況：
 
-## Weights mode (kept from v1)
+- 單筆最大虧損改成 NT$1,500：1 張要虧 NT$1,972，一張都買不起，不下單（訊息會提到 `--odd-lot`）。
+- `--limit 109.5`：每股風險 1.0，2 張停損出場約虧 NT$2,946，買 2 張，報酬風險比 2.00，扣成本後 1.03。
+- `--limit 109.3`：不在升降單位上（這個價位一檔 0.5），拒絕，建議 109.0 或 109.5。
+- 09:30 的新鮮價格 110.5（09:25 那根 K 棒的收盤）：每股風險變成 2.0（4 檔），報酬風險比只剩 0.50，
+  拒絕：它等的那段漲幅已經走掉一半。
+- `--odd-lot`：最大虧損本身允許 1,404 股，但盤中零股一筆最多 999 股，所以是 999 股、限價 110.0 ROD、
+  現股留倉，停損出場約虧 NT$2,134（成本 NT$635，一般證交稅）。trader-risk 要 `"allow_overnight": true` 才會放行。
 
-`--weights AAPL=22.04,KO=10.86` or `--targets FILE` (`targets.example.json`
-here) splits a budget across a list by weight: the cash buffer comes off the
-top, weights are renormalised to 100, any stock over `max_position_pct` is
-pinned at the cap and its excess shared out, slices under the minimum order
-are dropped, and amounts round to whole dollars so nothing is left idle by
-accident. With `"max_position_pct": 25` and `"fractional": true`, the example
-file gives AAPL $1,250 (capped), AXP $1,119, GOOGL $823, KO $708, BAC $600.
-With `"fractional": false` (the example config) it buys whole shares and
-needs prices (`--prices trader/prices.json`). These are plain buys with no stop: trader-risk blocks them while
-`require_stop` is true and counts each one against `max_trades_per_day`. Use
-a separate config (`--config`) for a long-term split.
+## 權重模式
 
-## Rules
+`--weights 0050=40,2330=30` 或 `--targets 檔案`（這裡的 `targets.example.json` 是示範用的權重，
+不是任何人的持股）把預算依權重分給一串代號：保留現金先扣掉，權重重新加總成 100，超過
+`max_position_pct` 的鎖在上限、多出來的分給其他檔，低於最低單筆金額的拿掉，然後買整數股（手續費算在內）。
+每檔拆成一張整股委託（整張的部分）和一張盤中零股委託（剩下的股數），都是限價 ROD、現股。需要價格
+（`--prices trader/prices.json`）。範例 NT$300,000、保留 10%，用 2026-11-02 的收盤價：
 
-- Proposals only. This skill never calls a broker tool.
-- Never size money the user has not said is for this. Ask for the budget and the max loss.
-- Every number comes from the config, the plan or the prices. Nothing is guessed.
-- No projections: never say what a trade will make. A target is a plan, not a forecast.
-- Free Yahoo prices are unofficial and can lag. The broker's price is the one that fills.
+| 代號 | 權重 | 價格 | 股數 | 金額 |
+| --- | --- | --- | --- | --- |
+| 0050 元大台灣50 | 40% | 104.10 | 1 張又 41 股 | NT$108,368 |
+| 2330 台積電 | 30% | 2,330 | 34 股 | NT$79,220 |
+| 2303 聯電 | 15% | 110.0 | 372 股 | NT$40,920 |
+| 6488 環球晶 | 15% | 760 | 54 股 | NT$41,040 |
 
-## What it never does
+投入 NT$269,548，手續費 NT$382，閒置 NT$70。這些是沒有停損的長期買單，不是當沖：`require_stop` 是
+true 時 trader-risk 會擋下，`allow_overnight` 是 false 時也會擋下。長期配置請用另一份設定檔（`--config`）。
 
-It never places, approves or schedules an order, never raises a limit on its
-own, never shrinks a stop to fit more shares, and never sizes options,
-margin or short positions.
+## 規則
 
-## Safety
+- 只寫提案。這個 skill 從不呼叫券商，也不會下單。
+- 使用者沒說是要拿來交易的錢，就不要算。先問預算和單筆最大虧損。
+- 每個數字都來自設定檔、計畫或價格檔，沒有猜的。手續費、證交稅用 twmarket.py，和 trader-risk 算法相同。
+- 不做預測：不說一筆交易會賺多少。停利是計畫，不是預估。
+- Yahoo 的免費資料不是官方資料，可能延遲。真正成交的是券商的價格。
 
-- Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+## 不做的事
+
+不下單、不核准、不排程任何委託；不自己放寬上限；不為了多買幾張把停損縮近；不算融資、融券、
+先賣後買、選擇權或期貨；不把零股當成當沖。
+
+## 安全
+
+- 這是教學與工具，不構成投資建議。PASS 只代表通過規則檢查，不是推薦。
+- 預設模擬交易（`"paper": true`）。要不要動用真錢，由使用者自己在自己的設定檔決定。
+- 這套 skill 不會自己下單。只有 trader-broker 會產生委託單，而且三件事都成立才會：trader-risk 今天通過了這一張單、使用者在對話中針對這一張單明確回覆 yes、使用者自己在券商 App 或下單軟體送出。
+- 不做融資、融券、先賣後買、選擇權或期貨，除非設定檔開啟而且使用者確認。
+- 券商帳號、密碼和憑證不在對話裡出現，也不寫進任何檔案。

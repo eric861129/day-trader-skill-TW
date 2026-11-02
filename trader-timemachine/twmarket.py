@@ -23,9 +23,18 @@ Sources, read 2026-11-02:
   tax           0.3 % of a sale; 0.15 % on a same-day (現股當沖) sale through 2027-12-31;
                 0.1 % for ETFs; bond ETFs 0 through 2026-12-31
   fee           0.1425 % a side at most, NT$20 minimum on a board-lot order; brokers discount it
+  orders        board lots in the continuous session: market or limit, each ROD, IOC or FOK; before
+                09:00 and in the closing auction only limit ROD. Intraday odd lots: limit ROD only.
+                Odd lots cannot be day-traded: one bought today can be sold the next trading day
+  lists         處置股 https://openapi.twse.com.tw/v1/announcement/punish and
+                https://www.tpex.org.tw/openapi/v1/tpex_disposal_information; stocks that may be
+                day-traded (現股當沖標的) https://openapi.twse.com.tw/v1/exchangeReport/TWTB4U and
+                https://www.tpex.org.tw/openapi/v1/tpex_securities. On 2026-11-02 the 14 active
+                處置股 were all missing from the day-trade lists
 """
 
 import datetime
+import hashlib
 import json
 import os
 import re
@@ -470,6 +479,142 @@ def cost_rate(code="", day_trade=True, fees=None, on=None):
     """The round trip as a fraction of the price, ignoring the fee minimum: fee twice plus the tax."""
     f = fees or fee_settings()
     return FEE_RATE * f["discount"] * 2 + sell_tax_rate(code, day_trade, on)
+
+
+def net_result(buy_price, sell_price, shares, code="", day_trade=True, fees=None, on=None):
+    """A buy and its sale in NT$: {"move": (sell - buy) x shares, "costs": fees and tax, "net": move - costs}."""
+    n = int(shares)
+    move = (dec(sell_price) - dec(buy_price)) * n
+    costs = round_trip(buy_price, sell_price, n, code, day_trade, fees, on)["total"]
+    return {"move": float(move), "costs": costs, "net": float(move - costs)}
+
+
+def loss_at_stop(entry, stop, shares, code="", day_trade=True, fees=None, on=None):
+    """What a buy at entry loses if it is sold exactly at the stop, fees and tax included:
+    {"move", "costs", "total"} in NT$. trader-budget sizes with it and trader-risk checks with it,
+    so both get the same number. A stop can fill worse than its price; this is the loss AT the stop."""
+    r = net_result(entry, stop, shares, code, day_trade, fees, on)
+    return {"move": -r["move"], "costs": r["costs"], "total": -r["net"]}
+
+
+# ---------------------------------------------------------------- tickets (budget -> risk -> broker)
+
+# The fields a ticket is placed with. trader-risk records a verdict per fingerprint and
+# trader-broker shows a ticket as ready only when its fingerprint passed today, so any
+# change to these fields needs a new check. Notes (name, why, plan) are left out.
+TICKET_FIELDS = ("symbol", "market", "side", "lot", "qty", "price_type", "price", "tif", "trade",
+                 "stop", "target")
+LOTS = ("board", "odd")                     # 整股, 盤中零股
+PRICE_TYPES = ("market", "limit")           # 市價, 限價
+TIFS = ("ROD", "IOC", "FOK")                # 當日有效, 立即成交否則取消, 全部成交否則取消
+TRADES = ("day_trade", "cash")              # 現股當沖, 現股 (held overnight at least)
+
+
+def fingerprint(order):
+    core = {k: order[k] for k in TICKET_FIELDS if k in order and order[k] is not None}
+    blob = json.dumps(core, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
+def price_text(price, code=""):
+    """A ticket price as plain text: the decimals of its tick, no thousands separator (110.0, 2330, 104.10)."""
+    return fmt_price(price, code).replace(",", "")
+
+
+# ---------------------------------------------------------------- 處置股 and the day-trade lists
+
+PUNISH_URL = "https://openapi.twse.com.tw/v1/announcement/punish"
+TPEX_DISPOSAL_URL = "https://www.tpex.org.tw/openapi/v1/tpex_disposal_information"
+DAYTRADE_URL = "https://openapi.twse.com.tw/v1/exchangeReport/TWTB4U"
+TPEX_DAYTRADE_URL = "https://www.tpex.org.tw/openapi/v1/tpex_securities"
+
+_CN_NUM = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_MATCH = re.compile(r"每\s*([0-9０-９一二三四五六七八九十]+)\s*分鐘撮合")
+
+
+def _cn_int(text):
+    if text.isdigit():
+        return int(text)
+    if "十" in text:
+        tens, _, ones = text.partition("十")
+        return (_CN_NUM.get(tens, 1) if tens else 1) * 10 + (_CN_NUM.get(ones, 0) if ones else 0)
+    return _CN_NUM.get(text)
+
+
+def parse_period(text):
+    """'115/10/28～115/11/03' or '1151102~1151110' -> (start, end) dates, or None."""
+    parts = [p for p in re.split(r"\s*[～~]\s*", str(text or "").strip()) if p]
+    if len(parts) != 2:
+        return None
+    try:
+        return roc_date(parts[0]), roc_date(parts[1])
+    except ValueError:
+        return None
+
+
+def parse_disposition(twse_rows=None, tpex_rows=None):
+    """The two disposition lists -> {code: {name, market, start, end, every_minutes}}."""
+    out = {}
+    rows = [(r, "TWSE", "Code", "Name", "Detail") for r in (twse_rows or [])]
+    rows += [(r, "TPEx", "SecuritiesCompanyCode", "CompanyName", "DisposalCondition") for r in (tpex_rows or [])]
+    for r, market, k_code, k_name, k_text in rows:
+        if not isinstance(r, dict):
+            continue
+        code = str(r.get(k_code) or "").strip()
+        period = parse_period(r.get("DispositionPeriod"))
+        if not code or not period:
+            continue
+        m = _MATCH.search(str(r.get(k_text) or ""))
+        every = _cn_int(m.group(1)) if m else None
+        old = out.get(code)
+        if old:  # two dispositions of one stock: cover both
+            period = (min(old["start"], period[0]), max(old["end"], period[1]))
+            every = every or old["every_minutes"]
+        out[code] = {"name": str(r.get(k_name) or "").strip(), "market": market, "start": period[0],
+                     "end": period[1], "every_minutes": every}
+    return out
+
+
+def active_disposition(disp, day):
+    return {c: v for c, v in (disp or {}).items() if v["start"] <= day <= v["end"]}
+
+
+def parse_daytrade(rows):
+    """The TWSE and TPEx lists of stocks that may be day-traded (rows of either, mixed) ->
+    {"date": the list's date or None, "codes": {code: {"name", "market", "sell_first"}}}.
+    sell_first is False when 先賣後買 is suspended for it (暫停現股賣出後現款買進當沖)."""
+    codes, dates = {}, set()
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        if "證券代號" in r:
+            code, name, flag, day, market = (r.get("證券代號"), r.get("證券名稱"),
+                                             r.get("暫停現股賣出後現款買進當沖註記"), r.get("資料日期"), "TPEx")
+        else:
+            code, name, flag, day, market = r.get("Code"), r.get("Name"), r.get("Suspension"), r.get("Date"), "TWSE"
+        code = str(code or "").strip()
+        if not code:
+            continue
+        codes[code] = {"name": str(name or "").strip(), "market": market,
+                       "sell_first": str(flag or "").strip().upper() != "Y"}
+        if day:
+            try:
+                dates.add(roc_date(str(day)))
+            except ValueError:
+                pass
+    return {"date": max(dates) if dates else None, "codes": codes}
+
+
+def list_kind(rows):
+    """Which list a saved JSON array is: "disposition", "daytrade" or None."""
+    first = next((r for r in (rows or []) if isinstance(r, dict)), None) if isinstance(rows, list) else None
+    if not first:
+        return None
+    if "DispositionPeriod" in first:
+        return "disposition"
+    if "Suspension" in first or "暫停現股賣出後現款買進當沖註記" in first:
+        return "daytrade"
+    return None
 
 
 # ---------------------------------------------------------------- the MIS quote

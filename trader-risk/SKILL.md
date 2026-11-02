@@ -1,172 +1,176 @@
 ---
 name: trader-risk
 description: >-
-  Risk Manager. Checks every trade against your limits and stops anything
-  over them, before it can reach the broker. For a day trade: a stop is
-  required, the loss at the stop must fit your max loss per trade (measured
-  from the higher of the plan's entry and a fresh price), reward:risk must
-  meet your minimum, the day's total risk must fit your daily loss limit, no
-  more than your trades per day, and no new entries outside your entry
-  window or when the market is closed. It also keeps the basics: blocked
-  tickers, order size, position cap, cash buffer, margin, short sales,
-  options and crypto, malformed or bad bracket orders, duplicates and a daily
-  order limit. Getting out is never blocked by a day limit. Prints PASS or
-  BLOCK with the reason and records the verdicts so trader-broker only shows
-  an order that passed. Use when the user says "check my order", "is this
-  safe", "risk check", "does this break my rules", "can I take this trade",
-  "how much have I risked today", or before /trader-broker, always.
-argument-hint: "[path to orders.json]"
+  風險管理（台股）。每一張委託單送到券商之前，先用你的規則檢查，超過的就擋下。當沖單要有停損；
+  停損出場的虧損（含手續費和證交稅）不能超過單筆最大虧損，風險從計畫進場價和最新價裡較高的那個算；
+  報酬風險比要達標；今天所有進場單押上的虧損加起來不能超過單日上限；每天筆數有上限；09:15 之前、
+  13:00 之後和休市日（含颱風假）不進場。還會檢查：現股當沖有沒有開通、是不是當天的現股當沖標的、
+  處置股、當沖額度、零股和留倉、整股一張 1000 股、升降單位、漲跌停、集合競價只收限價 ROD、
+  現金夠不夠付全額（避免違約交割）、部位上限、封鎖清單、放空、重複單。出場永遠不會被每日限制擋下。
+  每一張印出 PASS 或 BLOCK 和原因，並記錄結果，trader-broker 只會拿出通過的那一張。使用者說
+  「幫我檢查這張單」「這樣安全嗎」「會不會超過我的規則」「可以進場嗎」「今天還能做幾筆」「風險檢查」
+  「check my order」「risk check」，或要用 /trader-broker 之前，一定要用。
+argument-hint: "[orders.json 的路徑]"
 ---
 
 # trader-risk
 
-The Risk Manager is the gate between a proposal and the broker. Every order
-written by trader-budget or trader-broker's flatten passes through it. A
-BLOCK is final for that order: it does not go to the user for a yes, and it
-does not go to the broker. Most people who day trade lose money. These limits
-keep each loss and each day's losses small. They do not make a trade win.
+風險管理是提案和券商之間的關卡。trader-budget 寫的每一張委託單，以及 trader-broker
+的出清單，都要先通過這裡。BLOCK 就是那一張單的結論：不會拿去問使用者 yes，也不會出現在
+trader-broker。大多數做當沖的人是賠錢的。這些限制讓每一筆、每一天的虧損都很小，但不會讓
+交易變成賺錢。
 
-`${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
+`${CLAUDE_SKILL_DIR}` 是這個 skill 的資料夾（這份 SKILL.md 所在的位置）。
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/check.py"                           # trader/ files; writes trader/state/risk.json
+python3 "${CLAUDE_SKILL_DIR}/check.py"                            # trader/ 的檔案；寫 trader/state/risk.json
 python3 "${CLAUDE_SKILL_DIR}/check.py" --json
-python3 "${CLAUDE_SKILL_DIR}/check.py" --no-write                # look without recording
-python3 "${CLAUDE_SKILL_DIR}/check.py" --now "2026-10-19 10:15"  # pin the clock (New York time)
+python3 "${CLAUDE_SKILL_DIR}/check.py" --no-write                 # 只看，不記錄
+python3 "${CLAUDE_SKILL_DIR}/check.py" --now "2026-11-02 09:20"   # 固定時間（台北時間）
+python3 "${CLAUDE_SKILL_DIR}/check.py" --lists trader/state/lists # 用存下來的清單，不連網
+python3 "${CLAUDE_SKILL_DIR}/check.py" --lists none               # 不檢查清單（會警告沒確認什麼）
 ```
 
-## What it reads and writes
+## 讀寫哪些檔案
 
-| file | what |
+| 檔案 | 內容 |
 | --- | --- |
-| `trader/orders.json` | the proposed orders (trader-budget, or trader-broker's flatten) |
-| `trader/config.json` | the limits (trader-budget ships `config.example.json`) |
-| `trader/portfolio.json` | cash and holdings; if missing, a fresh account funded with the budget |
-| `trader/prices.json` | a fresh price raises the entry it measures risk from; also values holdings |
-| `trader/state/broker.json` | what was placed today: duplicates, trades per day, daily loss, day trades |
-| `trader/state/risk.json` | the verdicts it writes, with a fingerprint of each exact order |
+| `trader/orders.json` | 要檢查的委託單（trader-budget 寫的，或 trader-broker 的出清單） |
+| `trader/config.json` | 你的規則（trader-budget 的 `config.example.json`） |
+| `trader/portfolio.json` | 現金和持股（含今天買的是整股還是零股）；沒有的話，當成用 `budget` 開的新帳戶 |
+| `trader/prices.json` | 最新價：比計畫進場價高時，風險從最新價算；也用來估持股市值 |
+| `trader/state/broker.json` | 今天送出的單：重複單、每日筆數、交易次數、單日虧損、當沖額度 |
+| `trader/state/lists/` | 當天的處置股清單和現股當沖標的清單（證交所、櫃買中心 OpenAPI），沒有就抓下來存著 |
+| `trader/state/risk.json` | 檢查結果，每一張附上指紋（fingerprint） |
 
-## Entries and exits
+## 進場和出場
 
-An **entry** opens or adds to a position: a buy, or a sell that would go
-short. An **exit** only reduces what you already hold. Getting out must
-always be possible, so an exit is checked for format, asset and short sales
-only. Every other rule (day limits, entry window, loss, reward:risk, blocked
-list, size, duplicates) turns into a warning for an exit, never a BLOCK.
+**進場**是開新倉或加碼：買進，或是賣超過持有的股數（放空）。**出場**只減少手上已經有的股票。
+出場一定要做得到，所以出場只檢查格式、代號、放空，以及交易所允不允許今天賣（今天買的零股
+今天不能賣）。其他規則（每日限制、時段、虧損、報酬風險比、封鎖清單、金額、重複）對出場只是
+警告，不會 BLOCK。
 
-## The checks
+## 檢查項目
 
-Orders are checked in file order, as if each passed order had filled, so a
-batch that is fine order by order but breaks a limit together is caught.
+一批委託單依檔案順序檢查，而且假設前面通過的都已成交，所以一張一張看都沒問題、合起來卻超過
+限制的一批也擋得下來。
 
-| check | blocks when |
+| 檢查 | 什麼時候擋 |
 | --- | --- |
-| format | no symbol, side not buy or sell, both or neither of qty and notional, a notional order that is not market + day (Alpaca's rule), a limit order with no limit price; a bracket that is not whole shares, not `day` or `gtc`, or misses its stop-loss or take-profit |
-| asset | an option symbol while `allow_options` is false; crypto or anything that is not a US stock or ETF ticker |
-| short | a sell of more than you hold (`allow_short` false) |
-| blocked | (entries) the ticker is on the `blocked` list |
-| size | (entries) under `min_order_usd` or over `max_order_usd` |
-| position | (entries) the stock would be over `max_position_pct` of the account |
-| cash | (entries) the buy would leave less than the cash buffer, or need margin |
-| stop | (entries) no stop while `require_stop` is true (a bracket `stop_loss_stop_price`, or the order's plan stop); a stop on the wrong side of the entry |
-| loss | (entries) qty x (entry minus stop) over `max_loss_per_trade_usd` |
-| reward:risk | (entries) (target minus entry) / (entry minus stop) under `min_reward_risk` |
-| daily loss | (entries) the max losses at the stops of today's entries, plus this one, over `max_daily_loss_usd` |
-| trades | (entries) `max_trades_per_day` entries already placed today |
-| window | (entries) before `no_entries_before` or after `no_entries_after`, or the market is closed |
-| pdt | (entries, only with `pdt_guard` true) 3 day trades already in the last 5 business days |
-| duplicate | (entries) the same symbol and side twice in one batch, or already placed today |
-| daily limit | (entries) `max_orders_per_day` orders already placed today |
+| 格式 | side、lot（整股 1000 的倍數、零股 1 到 999 股）、price_type 和 price（限價要在升降單位上，市價不帶價格）、tif（ROD、IOC、FOK）、trade（day_trade、cash）。零股只接受限價 ROD，也不能當沖。09:00 前、13:25 收盤集合競價和收盤後，整股只接受限價 ROD。停損和停利要在升降單位上 |
+| 漲跌停 | 限價超出今天的漲跌停；買進價已經在漲停價 |
+| 標的 | 不是台股上市櫃的股票或 ETF 代號 |
+| 放空 | 賣超過持有的股數（`allow_short` 關閉時） |
+| 交割 | 今天買的零股今天賣（最快下一個交易日）；今天買的整股，沒開通現股當沖就今天賣 |
+| 封鎖 | （進場）代號在 `blocked` 清單上 |
+| 處置股 | （進場）處置期間的股票：每幾分鐘撮合一次、要預收款券（`allow_disposition` 關閉時） |
+| 當沖 | （進場）`day_trade_enabled` 是 false；不在當天的現股當沖標的清單；暫停先賣後買的股票做先賣後買 |
+| 當沖額度 | （進場）今天的當沖買進金額加這張，超過 `day_trade_quota_twd` |
+| 留倉 | （進場）現股買進（零股，或不當沖的整股），`allow_overnight` 關閉時 |
+| 金額 | （進場）低於 `min_order_twd` 或超過 `max_order_twd` |
+| 部位 | （進場）這檔股票會超過帳戶的 `max_position_pct` |
+| 現金 | （進場）買進金額加手續費會吃到你保留的現金，或現金根本不夠 |
+| 停損 | （進場）`require_stop` 開著卻沒有停損；停損在進場價的錯邊；停損低於今天的跌停價（今天碰不到） |
+| 虧損 | （進場）停損出場的虧損（價差加手續費和證交稅）超過 `max_loss_per_trade_twd` |
+| 報酬風險比 | （進場）（停利 − 進場）／（進場 − 停損）低於 `min_reward_risk`；有設 `min_reward_risk_net` 時，扣成本後也要達標 |
+| 單日虧損 | （進場）今天每一筆進場的停損虧損加這一筆，超過 `max_daily_loss_twd` |
+| 交易次數 | （進場）今天已經進場 `max_trades_per_day` 筆 |
+| 時段 | （進場）休市日（週末、證交所休市、颱風假、`extra_closed`）、09:00 到 13:30 以外、`no_entries_before` 之前、`no_entries_after` 之後 |
+| 重複 | （進場）同一批裡同一檔同方向兩張，或今天已經送出過 |
+| 每日筆數 | （進場）今天已經送出 `max_orders_per_day` 張 |
 
-How the numbers work:
+## 數字怎麼算
 
-- **The entry it measures from**: the limit price for a limit order. For a
-  market order, the HIGHER of the plan's entry and a fresh price from
-  `trader/prices.json` (under 15 minutes old). A plan written at 10:15 cannot
-  understate the risk at 10:55 after the price ran up. An older price is not
-  used, and it says so.
-- **Daily loss** counts the full max loss of every entry placed today, win or
-  lose, as trader-broker logged it. Three full-size trades use up a $150 day.
-- **The window** is New York time, worked out in the tool (daylight saving
-  included), never from the computer's clock zone. Weekends and NYSE holidays
-  are closed. On a 1:00 p.m. early close the window ends 3 hours earlier too.
-  Set both `no_entries_*` to null to switch the window off.
-- **pdt_guard** (off by default) counts a day trade as a symbol bought and
-  sold on the same day in the log, plus any entry placed today (it is meant
-  to be flat by the close). FINRA removed the $25,000 pattern-day-trader
-  minimum (Regulatory Notice 26-10, effective June 4, 2026; firms may phase
-  in until October 20, 2027), so some brokers still apply the old rule: turn
-  `pdt_guard` on if yours does.
+- **風險從哪個價格算**：限價單用限價。市價單用計畫進場價和 `trader/prices.json` 最新價
+  （15 分鐘內）裡**較高**的那個。09:20 寫的計畫，到 09:32 價格已經漲上去，風險就不能照舊算。
+  太舊的價格不用，而且會說明。
+- **停損出場虧多少**：股數 ×（進場 − 停損），加上買進和賣出的手續費（0.1425% 乘上你的折扣，
+  整股最低 NT$20、零股最低 `fee_min_odd_twd`，無條件捨去到元）和證交稅（現股當沖 0.15%，到
+  2027-12-31；一般 0.3%；ETF 0.1%）。trader-budget 用同一個公式算股數，所以兩邊數字一樣。停損越近，
+  成本占的比例越大。
+- **單日虧損**：今天每一筆已送出的進場，不論輸贏，都用 trader-broker 記錄的停損虧損全額計算。
+  三筆各 NT$2,500 就用掉 NT$7,500。
+- **現金和違約交割**：當沖是 T+2 交割差額，但如果當天沒賣掉（跌停鎖死、忘了出清），T+2 要付全額。
+  付不出來就是違約交割，會留下紀錄。所以買進金額加手續費一定要在現金之內，還要留下你設定的現金比例。
+- **時段**用台北時間，由工具自己算，不看電腦的時區。休市日用證交所的行事曆，加上颱風假和設定檔的
+  `extra_closed`。兩個 `no_entries_*` 都設成 null 就關掉時段檢查。
+- **集合競價**：09:00 前和 13:25 到 13:30，整股只收限價 ROD。這時候的市價單或 IOC、FOK 一定被退單，
+  所以格式檢查就先擋下。
 
-Warnings do not block, but say them to the user: a LIVE account, a number
-sent as a number instead of a string, a stop that lives only in the plan and
-not at the broker, a price too old to use, an early close today.
+## 交易所清單
 
-## Steps
+處置股和現股當沖標的每天都會變，所以要用當天的清單：
 
-1. If the price may have moved since the plan, refresh it first
-   (trader-alerts: `alerts.py quote TSLA --write`).
-2. Run `check.py`. Exit code 0 means every order passed, 1 means at least one
-   was blocked.
-3. Tell the user the result in plain words, order by order: the max loss at
-   the stop, reward:risk, and how much of today's limits it uses. For a
-   BLOCK, give the reason and the fix (fewer shares, a closer stop from
-   trader-exit, wait for the window, or skip the trade). Never change a
-   limit yourself.
-4. If the order changes in any way, run the check again. trader-broker matches
-   each order to its verdict by fingerprint, so an edited order is not ready
-   until it passes again, and a verdict from yesterday does not count today.
+- 處置股：證交所 `announcement/punish`、櫃買中心 `tpex_disposal_information`。
+- 現股當沖標的：證交所 `exchangeReport/TWTB4U`、櫃買中心 `tpex_securities`（含暫停先賣後買的註記）。
 
-## Example: the reel
+沒有 `--lists` 時，先找 `trader/state/lists/` 裡今天存的檔，沒有就抓下來存著。抓不到不會當掉，
+但每一張進場單都會警告「沒有確認能不能當沖／是不是處置股」。當沖標的清單比前一個交易日還舊也會警告。
+2026-11-02 的清單：證交所和櫃買中心共 2,080 檔可以當沖；那天 14 檔處置股全都不在裡面，
+全市場 2,350 檔股票和 ETF 裡也還有 275 檔不在（全額交割股等）。
 
-The TSLA bracket from trader-budget at 10:15 AM on Monday 2026-10-19, on a
-fresh $5,000 paper account with the example config:
+## 步驟
 
-```
-PASS  #1 buy TSLA 8 shares, entry
-          entry 364.18 (the plan's entry), stop 358.32, target 370.04: risk 5.86 a share
-          max loss $46.88 (limit $50), reward:risk 1.00 (min 1)
-          today before this: 0 of 3 trades, $0 of $150 daily loss
+1. 如果計畫之後價格可能已經變了，先更新價格（trader-alerts 寫 `trader/prices.json`）。
+2. 執行 `check.py`。結束代碼 0 代表每一張都通過，1 代表至少一張被擋下。
+3. 用白話一張一張告訴使用者：停損出場約虧多少（其中多少是手續費和證交稅）、報酬風險比（扣成本前後）、
+   今天的額度用了多少。被擋下的，說原因和怎麼改（少買幾張、用 trader-exit 設近一點的停損、等時段、
+   或者不做）。絕對不要自己改規則。
+4. 委託單有任何改變，就再檢查一次。trader-broker 用指紋比對每一張單和檢查結果，所以改過的單要重新通過；
+   昨天的通過也不算今天的。
 
-1 passed, 0 blocked at 2026-10-19 10:15 New York. Cash after the passed orders: $2,086.56 (paper account).
-```
+## 範例：聯電 2026-11-02
 
-One more share and it is blocked:
+trader-budget 在 09:20 寫的聯電 2303 一張單（市價 IOC、現股當沖、停損 108.5、停利 111.5），
+新開的 NT$300,000 模擬帳戶，設定是範例設定加上 `"day_trade_enabled": true`：
 
 ```
-BLOCK #1 buy TSLA 9 shares, entry
-          entry 364.18 (the plan's entry), stop 358.32, target 370.04: risk 5.86 a share
-          max loss $52.74 (limit $50), reward:risk 1.00 (min 1)
-          today before this: 0 of 3 trades, $0 of $150 daily loss
-        - loss: 9 shares x 5.86 risk a share = $52.74 at the stop, over your $50 max loss per trade
+PASS  #1 買進 聯電 2303 1 張（整股，市價 IOC，現股當沖），進場
+          進場 110.0（計畫進場價）、停損 108.5、停利 111.5：每股風險 1.5（3 檔）
+          停損出場約虧 NT$1,972（價差 NT$1,500 + 手續費和證交稅 NT$472；上限 NT$3,000）
+          報酬風險比 1.00（扣成本 0.52；最低 1）
+          今天在這之前：0/3 筆，單日虧損 NT$0/NT$9,000
+
+通過 1 張、擋下 0 張（台北時間 2026-11-02 09:20）。通過的單都成交後現金剩 NT$189,844（模擬帳戶）。
 ```
 
-The same 8 shares checked at 10:55 with the real 10:52 quote (366.48) in
-`trader/prices.json` are blocked twice: 8 x 8.16 = $65.28 at the stop, and
-reward:risk 0.44. At 9:40 they are blocked by the window (no new entries
-before 9:45). The 3:55 PM sell that closes the position passes, even though
-it is after the 3:30 entry cutoff: it is an exit.
+買 2 張就被擋下，原因只有一個：
 
-## Rules
+```
+BLOCK #1 買進 聯電 2303 2 張（整股，市價 IOC，現股當沖），進場
+        - 虧損：2 張 × 每股風險 1.5 = NT$3,000，加手續費和證交稅 NT$947，停損出場約虧 NT$3,947，超過你的單筆最大虧損 NT$3,000
+```
 
-- A PASS only means the order is allowed to be shown to the user. It is not a yes.
-- Every number comes from the config, the order, the portfolio, the prices or the broker log.
-- Free Yahoo prices are unofficial and can lag; the broker's price is the one that fills, and a
-  stop can fill worse than its price in a fast market.
+只看價差，2 張剛好 NT$3,000；算進手續費和證交稅就超過了。其他情況：
 
-## What it never does
+- 09:10 檢查：`時段：09:15 之前不進場（現在 09:10）`。
+- 設定檔的 `day_trade_enabled` 還是 false：`當沖：設定檔沒有開啟現股當沖`。沒簽當沖契約就當天賣出，
+  會變成違約交割。
+- 同樣的單換成東台 4526：`處置股：4526 東台 是處置股（到 2026-11-09，每 2 分鐘撮合一次，要預收款券）`，
+  而且 `當沖：4526 不在現股當沖標的清單上`。
+- 09:32 再檢查，`trader/prices.json` 有 09:25 那根 K 棒的收盤 110.5：風險從 110.5 算，每股 2.0（4 檔），
+  停損出場約虧 NT$2,473，但報酬風險比只剩 0.50（扣成本 0.21）：`報酬風險比：0.50（停利 111.5、進場 110.5、停損 108.5）低於你的最低 1`。
+  等到的突破大部分已經走完了。
+- 13:20 出清的那張賣單，雖然已經過了 13:00 的進場時段，還是 PASS：它是出場。
 
-It never places an order, never edits an order to make it pass, never
-loosens a limit, never blocks a sell that only gets the user out, and never
-treats a PASS as the user's yes.
+## 規則
 
-## Safety
+- PASS 只代表這張單可以拿給使用者看，不是使用者的 yes。
+- 每個數字都來自設定檔、委託單、帳戶、價格、下單紀錄或交易所清單。
+- Yahoo 的免費價格不是官方資料，可能延遲。真正成交的是券商的價格；急殺或跌停鎖死時，停損可能成交得
+  更差，甚至賣不掉。
+- 零股目前不能現股當沖：今天買的零股最快下一個交易日才能賣。
+- 處置股每幾分鐘才撮合一次，又要預收款券，當沖的計畫在那裡行不通。
 
-- Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+## 不做的事
+
+不會下單，不會為了讓單通過而修改委託單，不會放寬任何限制，不會擋下只是讓你出場的賣單，
+也不會把 PASS 當成使用者的 yes。
+
+## 安全
+
+- 這是教學與工具，不構成投資建議。PASS 只代表通過規則檢查，不是推薦。
+- 預設模擬交易（`"paper": true`）。要不要動用真錢，由使用者自己在自己的設定檔決定。
+- 這套 skill 不會自己下單。只有 trader-broker 會產生委託單，而且三件事都成立才會：trader-risk 今天通過了這一張單、使用者在對話中針對這一張單明確回覆 yes、使用者自己在券商 App 或下單軟體送出。
+- 不做融資、融券、先賣後買、選擇權或期貨，除非設定檔開啟而且使用者確認。
+- 券商帳號、密碼和憑證不在對話裡出現，也不寫進任何檔案。

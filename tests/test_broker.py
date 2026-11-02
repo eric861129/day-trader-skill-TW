@@ -9,24 +9,34 @@ from contextlib import redirect_stdout, redirect_stderr
 from _load import load, ROOT, FIX
 
 ticket = load("trader-broker", "ticket")
-check = load("trader-risk", "check")
+tw = load("trader-broker", "twmarket")
 
-CFG_PATH = os.path.join(ROOT, "trader-budget", "config.example.json")
-ORDERS_PATH = os.path.join(FIX, "trader-risk", "orders-tsla.json")
-PLAN_PATH = os.path.join(FIX, "trader-budget", "plan-tsla.json")
-NOW = "2026-10-19 10:15"
-TODAY = "2026-10-19"
-AAPL = {"symbol": "AAPL", "side": "buy", "notional": "1250", "type": "market", "time_in_force": "day"}
-BATCH = ["AAPL", "AXP", "GOOGL", "KO", "BAC"]
-TSLA_CALL = {"symbol": "TSLA", "side": "buy", "qty": "8", "type": "market", "time_in_force": "day",
-             "order_class": "bracket", "take_profit_limit_price": "370.04", "stop_loss_stop_price": "358.32"}
-TSLA_PLAIN = ("BUY 8 TSLA, market, good for today / stop-loss 358.32 / take-profit 370.04 / max loss about "
-              "$46.88 if the stop fills at 358.32 (it can fill worse in a fast market)")
+ORDERS_PATH = os.path.join(FIX, "trader-risk", "orders-2303.json")
+NOW = "2026-11-02 09:20"
+TODAY = "2026-11-02"
+CFG = {"budget": 300000, "paper": True, "day_trade_enabled": True, "flat_by": "13:20",
+       "fee_discount": 1, "fee_min_twd": 20, "fee_min_odd_twd": 1}
+PLAN = {"created_by": "trader-exit", "symbol": "2303", "market": "TWSE", "name": "聯電", "side": "buy",
+        "date": TODAY, "entry": 110.0, "stop": 108.5, "target": 111.5, "flat_by": "13:20",
+        "prev_close": 111.5, "limit_up": 122.5, "limit_down": 100.5}
+REEL_PLAIN = ("買進 聯電 2303（上市），整股 1 張，市價 IOC，現股當沖 / 停損 108.5 / 停利 111.5 / 停損出場約虧 "
+              "NT$1,972（含手續費和證交稅 NT$472；急跌、跳空或跌停鎖死時可能虧更多）")
+TSMC = {"symbol": "2330", "market": "TWSE", "name": "台積電", "side": "buy", "lot": "board", "qty": 1000,
+        "price_type": "limit", "price": "1460", "tif": "ROD", "trade": "day_trade", "stop": "1450",
+        "target": "1475"}
 
 
-def tsla(**over):
-    with open(ORDERS_PATH) as fh:
+def reel(**over):
+    with open(ORDERS_PATH, encoding="utf-8") as fh:
         o = json.load(fh)["orders"][0]
+    o.update(over)
+    return o
+
+
+def odd(**over):
+    o = {"symbol": "2303", "market": "TWSE", "name": "聯電", "side": "buy", "lot": "odd", "qty": 350,
+         "price_type": "limit", "price": "110.0", "tif": "ROD", "trade": "cash", "stop": "108.5",
+         "target": "111.5"}
     o.update(over)
     return o
 
@@ -38,69 +48,127 @@ def run(argv):
     return code, out.getvalue(), err.getvalue()
 
 
-class ExplicitYes(unittest.TestCase):
-    def yes(self, reply, order=AAPL, batch=BATCH):
-        return ticket.parse_yes(reply, order, batch)[0]
+def write(path, doc):
+    folder = os.path.dirname(path)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False)
 
-    def test_plain_yes_counts(self):
-        for r in ("yes", "Yes.", "YES", "y", "yes place it", "Yes, buy it", "yes AAPL", "yes $1,250 of AAPL",
-                  "yes 1250"):
+
+def read(path):
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def risk_doc(orders, verdicts=None, date=TODAY, kinds=None):
+    """trader/state/risk.json the way trader-risk writes it, built here (no check.py)."""
+    results = []
+    for i, o in enumerate(orders, 1):
+        v = (verdicts or {}).get(i, ("PASS", []))
+        results.append({"index": i, "symbol": o["symbol"], "side": o["side"],
+                        "kind": (kinds or {}).get(i, "entry" if o["side"] == "buy" else "exit"),
+                        "fingerprint": tw.fingerprint(o), "verdict": v[0], "reasons": v[1], "warnings": []})
+    return {"date": date, "now_taipei": date + " 09:20", "paper": True, "results": results,
+            "pass": sum(1 for r in results if r["verdict"] == "PASS"),
+            "block": sum(1 for r in results if r["verdict"] == "BLOCK"), "warnings": []}
+
+
+class ExplicitYes(unittest.TestCase):
+    def yes(self, reply, order=None, batch=None):
+        order = order or reel()
+        return ticket.parse_yes(reply, order, batch if batch is not None else [order, TSMC])[0]
+
+    def test_a_plain_yes_counts(self):
+        for r in ("yes", "Yes.", "YES", "y", "是", "是的", "是，買 1 張聯電", "確認", "確定下單", "確定 1000 股",
+                  "yes 2303", "yes 聯電", "yes 108.5", "yes 111.5", "是，進場 110.0", "是，停損出場約虧 1,972",
+                  "yes NT$1,972", "「是」", "是，13:20 前出清"):
             self.assertTrue(self.yes(r), r)
 
     def test_anything_else_does_not(self):
-        for r in ("", "sure", "ok", "okay", "go", "do it", "yeah", "yep", "absolutely", "send it",
-                  "yes to all", "yes, all of them", "yes to the rest", "yes both",
-                  "yes AXP", "yes 1000", "yes but make it 1000", "yes?", "no", "not yes",
-                  "yes, wait", "yes if it is under 340"):
+        for r in ("", "好", "好的", "ok", "OK", "可以", "sure", "yeah", "yep", "go", "do it", "下單", "沒問題",
+                  "是嗎", "是？", "yes?", "確定嗎？", "是吧", "是不是", "全部都買", "是，全部", "是，兩張都買",
+                  "yes to all", "yes both", "yes, all of them", "是，但停損改 108", "是，等一下", "是，先不要",
+                  "如果到 110 再買", "是，可能", "是，晚點再說", "yes, wait", "yes if under 110", "yes but 2000",
+                  "no", "不要", "not yes", "是 2 張", "yes 2000", "是，停損 108", "是，14:00 前賣"):
             self.assertFalse(self.yes(r), r)
 
-    def test_amount_must_match_this_order(self):
-        sell = {"symbol": "KO", "side": "sell", "qty": "3", "type": "market", "time_in_force": "day"}
-        self.assertTrue(self.yes("yes sell 3 KO", sell))
-        self.assertFalse(self.yes("yes sell 4", sell))
+    def test_naming_another_ticket_is_not_a_yes_for_this_one(self):
+        ok, why = ticket.parse_yes("是，2330", reel(), [reel(), TSMC])
+        self.assertFalse(ok)
+        self.assertIn("2330", why)
+        self.assertFalse(self.yes("是，台積電"))
+        self.assertTrue(self.yes("是，1 張台積電", TSMC, [reel(), TSMC]))
+        self.assertTrue(self.yes("yes 1460", TSMC, [reel(), TSMC]))
+        self.assertFalse(self.yes("是，聯電", TSMC, [reel(), TSMC]))
 
-    def test_a_bracket_yes(self):
-        o = tsla()
-        for r in ("yes", "yes 8 TSLA", "yes 358.32", "yes max loss 46.88", "yes target 370.04"):
-            self.assertTrue(self.yes(r, o, ["TSLA"]), r)
-        for r in ("yes 9", "yes 10 TSLA", "yes but stop at 357", "yes, stop 358.32", "yes AAPL", "sure"):
-            self.assertFalse(self.yes(r, o, ["TSLA", "AAPL"]), r)
+    def test_odd_lot_amounts(self):
+        o = odd()
+        self.assertTrue(self.yes("是，350 股", o, [o]))
+        self.assertFalse(self.yes("是，1 張", o, [o]))       # an odd-lot ticket has no 張
 
 
 class TicketShape(unittest.TestCase):
-    def test_tool_input_is_the_alpaca_call(self):
-        o = dict(AAPL, why="from a list")
-        self.assertEqual(ticket.tool_input(o), AAPL)
-        self.assertEqual(ticket.tool_input({"symbol": "KO", "side": "buy", "qty": 3, "type": "limit",
-                                            "limit_price": 89.5, "time_in_force": "day"}),
-                         {"symbol": "KO", "side": "buy", "qty": "3", "type": "limit", "limit_price": "89.5",
-                          "time_in_force": "day"})
+    def test_the_fingerprint_is_the_core_one(self):
+        self.assertEqual(ticket.fingerprint(reel()), "63bf9f525d5603a5")
+        self.assertEqual(ticket.fingerprint(reel(why="改寫理由", name="", plan={})), "63bf9f525d5603a5")
+        self.assertNotEqual(ticket.fingerprint(reel(qty=2000)), "63bf9f525d5603a5")
 
-    def test_the_bracket_call_leaves_out_why_and_plan(self):
-        self.assertEqual(ticket.tool_input(tsla()), TSLA_CALL)
-        self.assertEqual(ticket.fingerprint(tsla()), ticket.fingerprint(TSLA_CALL))
+    def test_plain_chinese(self):
+        self.assertEqual(ticket.plain(reel()), REEL_PLAIN)
+        self.assertEqual(ticket.max_loss(reel()), {"total": 1972.0, "costs": 472, "stop": 108.5})
+        lim = reel(price_type="limit", price="109.5", tif="ROD")
+        self.assertEqual(ticket.plain(lim).split(" / ")[0], "買進 聯電 2303（上市），整股 1 張，限價 109.5 ROD，現股當沖")
+        self.assertEqual(ticket.max_loss(lim), {"total": 1472.0, "costs": 472, "stop": 108.5})
+        no_plan = reel()
+        del no_plan["plan"]
+        self.assertIsNone(ticket.max_loss(no_plan))
+        self.assertEqual(ticket.plain(no_plan), "買進 聯電 2303（上市），整股 1 張，市價 IOC，現股當沖 / 停損 108.5 / 停利 111.5")
 
-    def test_plain_english(self):
-        self.assertEqual(ticket.plain(AAPL), "BUY $1,250 of AAPL, market order, good for today")
-        self.assertEqual(ticket.plain({"symbol": "KO", "side": "sell", "qty": "1", "type": "limit",
-                                       "limit_price": "95", "time_in_force": "gtc"}),
-                         "SELL 1 share of KO, limit order at $95, good until canceled")
-        self.assertEqual(ticket.plain(tsla()), TSLA_PLAIN)
-        lim = tsla(type="limit", limit_price="364.00")
-        self.assertEqual(ticket.plain(lim).split(" / ")[0], "BUY 8 TSLA, limit 364.00, good for today")
-        self.assertEqual(ticket.max_loss(lim), (45.44, 358.32))
-        no_plan = dict(TSLA_CALL)
-        self.assertEqual(ticket.max_loss(no_plan), (None, 358.32))
+    def test_an_odd_lot_is_held_overnight(self):
+        o = odd()
+        self.assertEqual(ticket.first_part(o), "買進 聯電 2303（上市），盤中零股 350 股，限價 110.0 ROD，現股（留倉）")
+        want = tw.loss_at_stop(110.0, 108.5, 350, "2303", False, None, None)["total"]
+        self.assertEqual(ticket.max_loss(o, None, None)["total"], want)
+        self.assertEqual(ticket.max_loss(o)["costs"], 54 + 54 + 113)   # both fees, then the full 0.3 % tax
+        tiny = odd(qty=5)
+        self.assertEqual(ticket.max_loss(tiny)["costs"], 1 + 1 + 1)    # NT$1 odd-lot minimum fees
+        lines = ticket.condition_lines(o)
+        self.assertEqual(len(lines), 1)
+        self.assertIn("最快下一個交易日才能賣", lines[0])
+        self.assertIn(("數量", "350 股"), ticket.app_fields(o))
+        self.assertIn(("交易別", "現股"), ticket.app_fields(o))
+
+    def test_what_to_type_in_the_app(self):
+        self.assertEqual(ticket.app_fields(reel()), [
+            ("市場", "上市"), ("代號", "2303 聯電"), ("買賣", "買進"), ("整股／零股", "整股"),
+            ("交易別", "現股（今天先買後賣就是現股當沖，要先跟券商簽好當沖契約）"), ("價格", "市價"),
+            ("委託條件", "IOC（立即成交，沒成交的部分取消）"), ("數量", "1 張（1,000 股）")])
+        sell = {"symbol": "6488", "market": "TPEx", "side": "sell", "lot": "board", "qty": 2000,
+                "price_type": "limit", "price": "355.5", "tif": "ROD", "trade": "day_trade"}
+        f = dict(ticket.app_fields(sell))
+        self.assertEqual((f["市場"], f["代號"], f["價格"], f["數量"]), ("上櫃", "6488", "限價 355.5", "2 張（2,000 股）"))
+        self.assertIn("現沖", f["交易別"])
+        self.assertEqual(ticket.condition_lines(sell), [])
+
+    def test_the_stop_and_target_become_conditional_orders(self):
+        lines = ticket.condition_lines(reel())
+        self.assertEqual(lines[0], "買進成交後，在券商 App 設條件單（觸價單）：")
+        self.assertIn("成交價小於或等於 108.5 時，市價賣出 1 張", lines[1])
+        self.assertIn("成交價大於或等於 111.5 時，賣出 1 張", lines[2])
+        self.assertIn("二擇一", lines[3])
 
 
-class DesktopConfig(unittest.TestCase):
-    def test_example_is_paper_with_placeholder_keys(self):
-        with open(os.path.join(ROOT, "trader-broker", "claude_desktop_config.example.json")) as fh:
-            server = json.load(fh)["mcpServers"]["alpaca"]
-        self.assertEqual((server["command"], server["args"]), ("uvx", ["alpaca-mcp-server"]))
-        self.assertEqual(server["env"]["ALPACA_PAPER_TRADE"], "true")
-        for k in ("ALPACA_API_KEY", "ALPACA_SECRET_KEY"):
-            self.assertIn("NEVER_IN_CHAT", server["env"][k])
+class NoBrokerApi(unittest.TestCase):
+    def test_no_alpaca_left(self):
+        self.assertFalse(os.path.exists(os.path.join(ROOT, "trader-broker", "claude_desktop_config.example.json")))
+        for f in ("ticket.py", "SKILL.md"):
+            with open(os.path.join(ROOT, "trader-broker", f), encoding="utf-8") as fh:
+                text = fh.read()
+            for bad in ("Alpaca", "alpaca", "place_stock_order", "Allow once", "mcpServers", "New York",
+                        "eastern_offset"):
+                self.assertNotIn(bad, text, "%s: %s" % (f, bad))
+            self.assertIn("券商", text)
 
 
 class Flow(unittest.TestCase):
@@ -109,11 +177,12 @@ class Flow(unittest.TestCase):
         self.orders = os.path.join(self.d, "orders.json")
         shutil.copy(ORDERS_PATH, self.orders)
         self.cfg = os.path.join(self.d, "config.json")
-        shutil.copy(CFG_PATH, self.cfg)
+        write(self.cfg, CFG)
         self.risk = os.path.join(self.d, "state", "risk.json")
         self.state = os.path.join(self.d, "state", "broker.json")
         self.pf = os.path.join(self.d, "portfolio.json")
-        self.none = os.path.join(self.d, "none")
+        self.plan = os.path.join(self.d, "plan.json")
+        write(self.plan, PLAN)
 
     def tearDown(self):
         shutil.rmtree(self.d)
@@ -122,185 +191,325 @@ class Flow(unittest.TestCase):
         return list(extra) + ["--orders", self.orders, "--config", self.cfg, "--risk", self.risk,
                               "--state", self.state, "--now", kw.get("now", NOW)]
 
-    def run_risk(self, now=NOW):
-        with redirect_stdout(io.StringIO()):
-            return check.main(["--orders", self.orders, "--config", self.cfg, "--portfolio", self.pf,
-                               "--prices", self.none, "--state", self.state, "--now", now, "--out", self.risk])
+    def orders_now(self):
+        return read(self.orders)["orders"]
 
-    def state_doc(self):
-        with open(self.state) as fh:
-            return json.load(fh)
+    def pass_risk(self, **kw):
+        write(self.risk, risk_doc(self.orders_now(), **kw))
 
     def test_nothing_is_ready_before_the_risk_check(self):
         code, text, _ = run(self.args("show"))
         self.assertEqual(code, 1)
-        self.assertIn("NOT READY", text)
-        self.assertNotIn("Reply \"yes\"", text)
-        code, _, err = run(self.args("approve", "--index", "1", "--reply", "yes"))
+        self.assertIn("NOT READY：trader-risk 還沒檢查", text)
+        self.assertNotIn("要下這一張就回覆 yes", text)
+        code, _, err = run(self.args("approve", "--index", "1", "--reply", "是"))
         self.assertEqual(code, 1)
-        self.assertIn("not ready", err)
-
-    def test_the_full_two_yes_flow(self):
-        self.assertEqual(self.run_risk(), 0)
-        code, text, _ = run(self.args("show", "--index", "1"))
-        self.assertEqual(code, 0)
-        self.assertIn("ORDER 1 of 1, PAPER account, Alpaca", text)
-        for part in TSLA_PLAIN.split(" / "):
-            self.assertIn("  " + part + "\n", text)
-        self.assertIn("READY: trader-risk PASS", text)
-        self.assertIn('"order_class": "bracket"', text)
-        self.assertIn('"stop_loss_stop_price": "358.32"', text)
-        self.assertNotIn('"plan"', text)
-        self.assertNotIn('"why"', text)
-        self.assertIn("Allow once", text)
-
-        code, text, _ = run(self.args("approve", "--index", "1", "--reply", "sure"))
-        self.assertEqual(code, 1)
-        self.assertIn("Not recorded", text)
+        self.assertIn("還不能同意", err)
         self.assertFalse(os.path.exists(self.state))
 
-        code, text, _ = run(self.args("approve", "--index", "1", "--reply", "yes"))
+    def test_the_reel_from_ticket_to_fill(self):
+        self.pass_risk()
+        code, text, _ = run(self.args("show", "--index", "1"))
         self.assertEqual(code, 0)
-        self.assertIn("place_stock_order", text)
-        self.assertEqual(json.loads(text[text.index("{"):text.rindex("}") + 1]), TSLA_CALL)
-        code, _, err = run(self.args("approve", "--index", "1", "--reply", "yes"))
+        self.assertIn("委託 1／1，模擬交易\n", text)
+        for part in REEL_PLAIN.split(" / "):
+            self.assertIn("  " + part + "\n", text)
+        for line in ("  計畫進場 110.0（09:20）", "    市場：上市", "    代號：2303 聯電", "    數量：1 張（1,000 股）",
+                     "  READY：trader-risk 今天通過了這一張，等你回覆 yes",
+                     "  模擬交易，不要在真的券商送出，回覆 yes 後用 fill 記錄假設成交。",
+                     "  13:20 前出清：不論輸贏都賣掉", "違約交割"):
+            self.assertIn(line, text)
+        self.assertIn("理由：開盤區間突破，聯電 2303：1 張", text)
+
+        code, text, _ = run(self.args("approve", "--index", "1", "--reply", "好"))
+        self.assertEqual(code, 1)
+        self.assertIn("沒有記錄", text)
+        self.assertFalse(os.path.exists(self.state))
+
+        code, text, _ = run(self.args("approve", "--index", "1", "--reply", "是，買 1 張聯電"))
+        self.assertEqual(code, 0)
+        self.assertIn("已記錄你對第 1 張的 yes", text)
+        self.assertIn("還沒有任何東西送出", text)
+        self.assertIn("ticket.py result --index 1 --status placed --filled-qty 1000", text)
+        code, _, err = run(self.args("approve", "--index", "1", "--reply", "是"))
         self.assertEqual(code, 1)
         self.assertIn("APPROVED", err)
 
-        code, text, _ = run(self.args("result", "--index", "1", "--status", "placed", "--broker-id", "abc123",
-                                      "--filled-qty", "8", "--filled-price", "364.20", "--portfolio", self.pf,
-                                      now="2026-10-19 10:16"))
+        code, text, _ = run(self.args("result", "--index", "1", "--status", "placed", "--order-no", "A1234",
+                                      "--filled-qty", "1000", "--filled-price", "110.0", "--portfolio", self.pf,
+                                      now="2026-11-02 09:21"))
         self.assertEqual(code, 0)
-        st = self.state_doc()
+        self.assertIn("手續費 NT$156，現金現在 NT$189,844", text)
+        st = read(self.state)
         self.assertEqual([r["status"] for r in st["orders"]], ["approved", "placed", "filled"])
-        appr, plc = st["orders"][0], st["orders"][1]
-        self.assertEqual((appr["reply"], appr["kind"], appr["max_loss"], appr["date"]), ("yes", "entry", 46.88, TODAY))
-        self.assertEqual(appr["at"], "2026-10-19T10:15:00-04:00")
-        self.assertEqual((plc["broker_order_id"], plc["max_loss"], plc["kind"]), ("abc123", 46.88, "entry"))
-        with open(self.pf) as fh:
-            pf = json.load(fh)
-        self.assertEqual(pf["cash"], 2086.4)
-        self.assertEqual(pf["positions"][0]["shares"], 8)
+        appr, plc, fill = st["orders"]
+        self.assertEqual(appr["at"], "2026-11-02T09:20:00+08:00")
+        self.assertEqual((appr["reply"], appr["kind"], appr["date"], appr["symbol"], appr["name"]),
+                         ("是，買 1 張聯電", "entry", TODAY, "2303", "聯電"))
+        self.assertEqual((appr["lot"], appr["qty"], appr["trade"], appr["value_twd"], appr["max_loss"], appr["stop"]),
+                         ("board", 1000, "day_trade", 110000.0, 1972.0, 108.5))
+        self.assertEqual((plc["order_no"], plc["max_loss"], plc["kind"], plc["value_twd"], plc["at"]),
+                         ("A1234", 1972.0, "entry", 110000.0, "2026-11-02T09:21:00+08:00"))
+        self.assertEqual((fill["qty"], fill["price"], fill["lot"], fill["trade"]), (1000, 110.0, "board", "day_trade"))
+        pf = read(self.pf)
+        self.assertEqual(pf, {"cash": 189844, "positions": [
+            {"symbol": "2303", "market": "TWSE", "name": "聯電", "shares": 1000,
+             "lots": [{"id": "2303-1", "date": TODAY, "shares": 1000, "cost": 110156, "lot": "board",
+                       "trade": "day_trade"}]}]})
 
         code, text, _ = run(self.args("show", "--index", "1"))
-        self.assertIn("DONE: placed", text)
-        code, text, _ = run(["log", "--state", self.state, "--now", NOW])
-        self.assertIn("1 placed today", text)
-        self.assertIn("max loss $46.88", text)
+        self.assertEqual(code, 1)
+        self.assertIn("DONE：已送出（09:21）", text)
+        code, text, _ = run(["log", "--state", self.state, "--now", "2026-11-02 09:30"])
+        self.assertIn("今天已送出 1 筆", text)
+        self.assertIn("停損出場約虧 NT$1,972", text)
+        self.assertIn("委託書號 A1234", text)
+        self.assertEqual(run(["log", "--state", self.state, "--now", "2026-11-03 09:30"])[0], 1)
 
-        # trader-risk now counts it: a second TSLA buy today is a duplicate, and $46.88 is used
-        res = check.check([tsla()], {"budget": 5000}, state=st, now=check.parse_now("2026-10-19 10:30"))
-        self.assertIn("already placed today", " ".join(res["results"][0]["reasons"]))
-        self.assertEqual((res["today"]["entries_placed"], res["today"]["loss_at_risk"]), (1, 46.88))
-
-    def test_flatten_by_the_close(self):
-        self.run_risk()
-        run(self.args("approve", "--index", "1", "--reply", "yes"))
-        run(self.args("result", "--index", "1", "--status", "placed", "--broker-id", "abc",
-                      "--filled-qty", "8", "--filled-price", "364.20", "--portfolio", self.pf))
-        late = "2026-10-19 15:55"
-        code, text, _ = run(["flatten", "--symbol", "TSLA", "--orders", self.orders, "--portfolio", self.pf,
-                             "--plan", PLAN_PATH, "--config", self.cfg, "--now", late])
+    def test_show_json(self):
+        self.pass_risk()
+        code, text, _ = run(self.args("show", "--index", "1", "--json"))
         self.assertEqual(code, 0)
-        self.assertIn("SELL 8 shares of TSLA, market order, good for today (flat by 15:55 New York)", text)
-        self.assertIn("replaced 1 earlier proposal", text)
-        self.assertIn("cancel_order_by_id", text)
-        with open(self.orders) as fh:
-            doc = json.load(fh)
-        self.assertEqual(ticket.tool_input(doc["orders"][0]),
-                         {"symbol": "TSLA", "side": "sell", "qty": "8", "type": "market", "time_in_force": "day"})
-        self.assertEqual(self.run_risk(now=late), 0)       # after the 15:30 entry cutoff: an exit still passes
-        with open(self.risk) as fh:
-            self.assertEqual(json.load(fh)["results"][0]["kind"], "exit")
+        t = json.loads(text)
+        self.assertEqual((t["ready"], t["fingerprint"], t["max_loss"], t["costs_at_stop"], t["stop"], t["target"]),
+                         (True, "63bf9f525d5603a5", 1972.0, 472, 108.5, 111.5))
+        self.assertEqual(t["ticket"], {k: v for k, v in reel().items() if k in tw.TICKET_FIELDS})
+        self.assertEqual(t["app_fields"][0], ["市場", "上市"])
+
+    def test_a_live_account_says_real_money(self):
+        write(self.cfg, dict(CFG, paper=False, broker_name="某某證券"))
+        self.pass_risk()
+        code, text, _ = run(self.args("show", "--index", "1"))
+        self.assertIn("委託 1／1，真錢帳戶，券商：某某證券", text)
+        self.assertIn("這一張送出去就是真的錢", text)
+        self.assertNotIn("模擬交易", text)
+        code, text, _ = run(self.args("approve", "--index", "1", "--reply", "yes"))
+        self.assertEqual(code, 0)
+        self.assertIn("請你自己在券商 App 照這些欄位送出", text)
+        self.assertIn("  委託條件：IOC（立即成交，沒成交的部分取消）", text)
+        self.assertIn("--order-no 委託書號", text)
+
+    def test_one_yes_one_ticket(self):
+        write(self.orders, {"orders": [reel(), TSMC]})
+        self.pass_risk()
+        code, text, _ = run(self.args("show"))
+        self.assertEqual(code, 0)
+        self.assertIn("委託 1／2，模擬交易", text)
+        self.assertIn("委託 2／2，模擬交易", text)
+        self.assertIn("買進 台積電 2330（上市），整股 1 張，限價 1,460 ROD，現股當沖", text)
+        code, text, _ = run(self.args("approve", "--index", "1", "--reply", "是，兩張都買"))
+        self.assertEqual(code, 1)
+        code, text, _ = run(self.args("approve", "--index", "1", "--reply", "是，2330"))
+        self.assertEqual(code, 1)
+        self.assertIn("回覆提到 2330", text)
+        self.assertEqual(run(self.args("approve", "--index", "2", "--reply", "是，台積電 1 張"))[0], 0)
+        self.assertEqual(run(self.args("show", "--index", "1"))[0], 0)      # #1 is still waiting for its own yes
+
+    def test_an_edited_ticket_is_not_ready(self):
+        self.pass_risk()
+        doc = read(self.orders)
+        doc["orders"][0]["qty"] = 2000
+        write(self.orders, doc)
+        code, text, _ = run(self.args("show", "--index", "1"))
+        self.assertEqual(code, 1)
+        self.assertIn("這一張不在最近一次風險檢查裡", text)
+
+    def test_yesterdays_check_does_not_count(self):
+        self.pass_risk(date="2026-10-30")
+        code, text, _ = run(self.args("show", "--index", "1"))
+        self.assertEqual(code, 1)
+        self.assertIn("風險檢查是 2026-10-30 的，不是今天", text)
+
+    def test_blocked_tickets_are_never_ready(self):
+        self.pass_risk(verdicts={1: ("BLOCK", ["時段：09:15 之前不進場（現在 09:10）", "當沖：設定檔沒有開啟現股當沖"])})
+        code, text, _ = run(self.args("show", "--index", "1", now="2026-11-02 09:10"))
+        self.assertEqual(code, 1)
+        self.assertIn("BLOCKED：trader-risk 擋下：時段：09:15 之前不進場（現在 09:10）；當沖：設定檔沒有開啟現股當沖", text)
+        code, _, err = run(self.args("approve", "--index", "1", "--reply", "是", now="2026-11-02 09:10"))
+        self.assertEqual(code, 1)
+        self.assertIn("BLOCKED", err)
+
+    def test_result_needs_a_yes_and_a_no_is_logged(self):
+        self.pass_risk()
+        code, _, err = run(self.args("result", "--index", "1", "--status", "placed"))
+        self.assertEqual(code, 1)
+        self.assertIn("沒有記錄到你的 yes", err)
+        code, text, _ = run(self.args("decline", "--index", "1", "--reply", "不要了"))
+        self.assertEqual(code, 0)
+        self.assertIn("什麼都沒有送出", text)
+        code, text, _ = run(self.args("show", "--index", "1"))
+        self.assertIn("DONE：不要", text)
+
+    def test_skipped_after_the_yes(self):
+        self.pass_risk()
+        run(self.args("approve", "--index", "1", "--reply", "確認"))
+        code, text, _ = run(self.args("result", "--index", "1", "--status", "skipped", "--note", "價格跑掉了"))
+        self.assertEqual(code, 0)
+        self.assertEqual(read(self.state)["orders"][-1]["status"], "skipped")
+        self.assertIn("DONE：沒送出", run(self.args("show", "--index", "1"))[1])
+        self.assertIn("今天已送出 0 筆", run(["log", "--state", self.state, "--now", NOW])[1])
+
+    def fill_reel(self):
+        self.pass_risk()
+        run(self.args("approve", "--index", "1", "--reply", "是"))
+        run(self.args("result", "--index", "1", "--status", "placed", "--filled-qty", "1000",
+                      "--filled-price", "110.0", "--portfolio", self.pf))
+
+    def flatten(self, now, *extra, **kw):
+        return run(["flatten", "--symbol", kw.get("symbol", "2303"), "--orders", self.orders,
+                    "--portfolio", self.pf, "--plan", self.plan, "--config", self.cfg, "--now", now] + list(extra))
+
+    def test_flatten_by_13_20(self):
+        self.fill_reel()
+        late = "2026-11-02 13:20"
+        code, text, _ = self.flatten(late)
+        self.assertEqual(code, 0)
+        self.assertIn("出清 2303：賣出 聯電 2303（上市），整股 1 張，市價 IOC，現股當沖（計畫 13:20 前出清）", text)
+        self.assertIn("取代了先前 1 筆提案", text)
+        self.assertIn("先在券商 App 刪掉", text)
+        o = self.orders_now()[0]
+        self.assertEqual({k: o[k] for k in tw.TICKET_FIELDS if k in o},
+                         {"symbol": "2303", "market": "TWSE", "side": "sell", "lot": "board", "qty": 1000,
+                          "price_type": "market", "tif": "IOC", "trade": "day_trade"})
+        self.assertEqual(read(self.orders)["created_by"], "trader-broker")
+        self.pass_risk(kinds={1: "exit"})
         code, text, _ = run(self.args("show", now=late))
         self.assertEqual(code, 0)
         self.assertIn("READY", text)
-        self.assertEqual(run(self.args("approve", "--index", "1", "--reply", "yes sell 8 TSLA", now=late))[0], 0)
-        code, _, _ = run(self.args("result", "--index", "1", "--status", "placed", "--filled-qty", "8",
-                                   "--filled-price", "366.10", "--portfolio", self.pf, now="2026-10-19 15:56"))
+        self.assertIn("交易別：現股（賣掉今天買的股票就是現股當沖", text)
+        self.assertNotIn("條件單（觸價單）", text)
+        self.assertEqual(run(self.args("approve", "--index", "1", "--reply", "是，賣 1 張", now=late))[0], 0)
+        self.assertEqual(read(self.state)["orders"][-1]["kind"], "exit")
+        code, text, _ = run(self.args("result", "--index", "1", "--status", "placed", "--filled-qty", "1000",
+                                      "--filled-price", "111.5", "--portfolio", self.pf, now="2026-11-02 13:21"))
         self.assertEqual(code, 0)
-        with open(self.pf) as fh:
-            pf = json.load(fh)
-        self.assertEqual((pf["cash"], pf["positions"]), (5015.2, []))
-        self.assertEqual(check.day_trades(self.state_doc(), TODAY), (1, ["2026-10-19 TSLA"]))
-        code, _, err = run(["flatten", "--symbol", "TSLA", "--orders", self.orders, "--portfolio", self.pf,
-                            "--now", late])
+        self.assertIn("手續費 NT$158，證交稅 NT$167", text)       # 0.15 % day-trade tax
+        self.assertEqual(read(self.pf), {"cash": 301019, "positions": []})
+        code, _, err = self.flatten(late)
         self.assertEqual(code, 1)
-        self.assertIn("nothing to flatten", err)
+        self.assertIn("沒有要出清的當沖", err)
 
-    def test_flatten_with_the_broker_qty(self):
-        code, text, _ = run(["flatten", "--symbol", "tsla", "--qty", "8", "--orders", self.orders,
-                             "--portfolio", self.none, "--plan", self.none, "--config", self.cfg, "--now", NOW])
+    def test_the_closing_auction_takes_limit_rod_only(self):
+        self.fill_reel()
+        code, text, _ = self.flatten("2026-11-02 13:26")
         self.assertEqual(code, 0)
-        self.assertNotIn("Check it against get_open_position", text)
-        self.assertEqual(run(["flatten", "--symbol", "TSLA", "--qty", "0", "--orders", self.orders])[0], 1)
-
-    def test_an_edited_order_is_not_ready(self):
-        self.run_risk()
-        with open(self.orders) as fh:
-            doc = json.load(fh)
-        doc["orders"][0]["qty"] = "9"
-        with open(self.orders, "w") as fh:
-            json.dump(doc, fh)
-        code, text, _ = run(self.args("show", "--index", "1"))
+        self.assertIn("整股 1 張，限價 100.5 ROD，現股當沖", text)
+        self.assertIn("收盤集合競價", text)
+        o = self.orders_now()[0]
+        self.assertEqual((o["price_type"], o["price"], o["tif"]), ("limit", "100.5", "ROD"))
+        write(self.plan, dict(PLAN, limit_down=None))
+        self.assertEqual(self.orders_now()[0]["price"], "100.5")
+        code, _, _ = self.flatten("2026-11-02 13:27")
+        self.assertEqual((code, self.orders_now()[0]["price"]), (0, "100.5"))   # from the prev close
+        write(self.plan, {"symbol": "2303"})
+        code, _, err = self.flatten("2026-11-02 13:27")
         self.assertEqual(code, 1)
-        self.assertIn("was not in the last risk check", text)
+        self.assertIn("跌停價", err)
+        code, _, _ = self.flatten("2026-11-02 13:27", "--price", "101.0")
+        self.assertEqual((code, self.orders_now()[0]["price"]), (0, "101.0"))
 
-    def test_yesterdays_check_does_not_count(self):
-        self.run_risk(now="2026-10-16 10:15")
-        code, text, _ = run(self.args("show", "--index", "1"))
-        self.assertIn("not today", text)
-
-    def test_blocked_orders_are_never_ready(self):
-        self.assertEqual(self.run_risk(now="2026-10-19 09:40"), 1)
-        code, text, _ = run(self.args("show", "--index", "1", now="2026-10-19 09:40"))
-        self.assertIn("BLOCKED by trader-risk: window: no new entries before 09:45", text)
-        code, _, _ = run(self.args("approve", "--index", "1", "--reply", "yes", now="2026-10-19 09:40"))
+    def test_after_the_close_it_is_too_late(self):
+        self.fill_reel()
+        code, _, err = self.flatten("2026-11-02 13:31")
         self.assertEqual(code, 1)
+        self.assertIn("已經收盤", err)
+        self.assertIn("違約交割", err)
+        code, _, err = self.flatten("2026-11-01 10:00")
+        self.assertIn("休市", err)
+        code, _, err = self.flatten("2026-10-23 10:00")
+        self.assertIn("薔琵颱風", err)
 
-    def test_result_needs_an_approval_and_decline_is_logged(self):
-        self.run_risk()
-        code, _, err = run(self.args("result", "--index", "1", "--status", "placed"))
+    def test_odd_lots_bought_today_cannot_be_flattened(self):
+        write(self.pf, {"cash": 0, "positions": [{"symbol": "2303", "shares": 350, "lots": [
+            {"id": "2303-1", "date": TODAY, "shares": 350, "cost": 38501, "lot": "odd", "trade": "cash"}]}]})
+        code, _, err = self.flatten("2026-11-02 13:20")
         self.assertEqual(code, 1)
-        self.assertIn("no yes recorded", err)
-        code, text, _ = run(self.args("decline", "--index", "1", "--reply", "no thanks"))
+        self.assertIn("零股不能當沖", err)
+        code, _, err = self.flatten("2026-11-02 13:20", "--qty", "350")
+        self.assertEqual(code, 1)
+        self.assertIn("整股", err)
+
+    def test_flatten_with_the_qty_from_the_app(self):
+        code, text, _ = run(["flatten", "--symbol", "6488.TWO", "--qty", "2000", "--orders", self.orders,
+                             "--portfolio", os.path.join(self.d, "none"), "--plan", os.path.join(self.d, "none"),
+                             "--config", self.cfg, "--now", "2026-11-02 13:20"])
         self.assertEqual(code, 0)
-        code, text, _ = run(self.args("show", "--index", "1"))
-        self.assertIn("DONE: declined", text)
+        self.assertIn("賣出 6488（上櫃），整股 2 張，市價 IOC，現股當沖", text)
+        self.assertNotIn("先對一下券商 App 裡的庫存", text)
+        self.assertEqual(run(["flatten", "--symbol", "2303", "--qty", "0", "--orders", self.orders,
+                              "--now", "2026-11-02 13:20"])[0], 1)
+        self.assertEqual(run(["flatten", "--symbol", "TSLA", "--qty", "1000", "--orders", self.orders])[0], 1)
 
-    def test_ibkr_tickets_send_the_final_yes_to_ibkr(self):
-        with open(self.cfg) as fh:
-            c = json.load(fh)
-        c["broker"] = "ibkr"
-        with open(self.cfg, "w") as fh:
-            json.dump(c, fh)
-        self.run_risk()
-        code, text, _ = run(self.args("show", "--index", "1"))
-        self.assertIn("Interactive Brokers", text)
-        self.assertIn("after you approve it there", text)
-        self.assertNotIn("place_stock_order", text)
 
-    def test_fill_sell_relieves_the_oldest_lot(self):
-        pf = {"cash": 0, "positions": [{"ticker": "KO", "shares": 3, "lots": [
-            {"id": "KO-1", "date": "2025-01-02", "shares": 2, "cost": 120.0},
-            {"id": "KO-2", "date": "2026-01-02", "shares": 1, "cost": 70.0}]}]}
-        with open(self.pf, "w") as fh:
-            json.dump(pf, fh)
-        code, text, _ = run(["fill", "--symbol", "KO", "--side", "sell", "--qty", "2.5", "--price", "90",
-                             "--date", TODAY, "--portfolio", self.pf, "--config", self.cfg, "--state", self.state])
+class Fills(unittest.TestCase):
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.pf = os.path.join(self.d, "portfolio.json")
+        self.cfg = os.path.join(self.d, "config.json")
+        write(self.cfg, CFG)
+        self.state = os.path.join(self.d, "broker.json")
+
+    def tearDown(self):
+        shutil.rmtree(self.d)
+
+    def fill(self, *argv):
+        return run(["fill"] + list(argv) + ["--portfolio", self.pf, "--config", self.cfg, "--state", self.state])
+
+    def test_a_same_day_sale_relieves_todays_lots_first(self):
+        write(self.pf, {"cash": 0, "positions": [{"symbol": "2303", "shares": 2000, "lots": [
+            {"id": "2303-1", "date": "2026-10-30", "shares": 1000, "cost": 108154, "lot": "board", "trade": "cash"},
+            {"id": "2303-2", "date": TODAY, "shares": 1000, "cost": 110156, "lot": "board", "trade": "day_trade"}]}]})
+        code, text, _ = self.fill("--symbol", "2303", "--side", "sell", "--qty", "1000", "--price", "108.5",
+                                  "--date", TODAY)
         self.assertEqual(code, 0)
-        with open(self.pf) as fh:
-            pf = json.load(fh)
-        self.assertEqual(pf["cash"], 225.0)
-        lots = pf["positions"][0]["lots"]
-        self.assertEqual([l["id"] for l in lots], ["KO-2"])
-        self.assertEqual(lots[0]["shares"], 0.5)
-        self.assertEqual(lots[0]["cost"], 35.0)
-        self.assertEqual(self.state_doc()["orders"][-1]["status"], "filled")
-        code, _, err = run(["fill", "--symbol", "KO", "--side", "sell", "--qty", "5", "--price", "90",
-                            "--portfolio", self.pf, "--config", self.cfg, "--state", self.state])
+        self.assertIn("手續費 NT$154，證交稅 NT$162", text)
+        pf = read(self.pf)
+        self.assertEqual(pf["cash"], 108500 - 154 - 162)
+        self.assertEqual([l["id"] for l in pf["positions"][0]["lots"]], ["2303-1"])
+        self.assertEqual(read(self.state)["orders"][-1]["status"], "filled")
+        code, text, _ = self.fill("--symbol", "2303", "--side", "sell", "--qty", "1000", "--price", "108.5",
+                                  "--date", TODAY)
+        self.assertIn("證交稅 NT$325", text)                          # held from 10-30: 0.3 %, not a day trade
+        self.assertEqual(read(self.pf)["positions"], [])
+
+    def test_odd_lots(self):
+        code, text, _ = self.fill("--symbol", "2303", "--side", "buy", "--qty", "350", "--price", "110.0",
+                                  "--date", TODAY)
+        self.assertEqual(code, 0)
+        self.assertIn("手續費 NT$54", text)
+        pf = read(self.pf)
+        self.assertEqual(pf["cash"], 300000 - 38500 - 54)
+        self.assertEqual(pf["positions"][0]["lots"][0],
+                         {"id": "2303-1", "date": TODAY, "shares": 350, "cost": 38554, "lot": "odd", "trade": "cash"})
+        code, _, err = self.fill("--symbol", "2303", "--side", "sell", "--qty", "350", "--price", "111.0",
+                                 "--date", TODAY)
         self.assertEqual(code, 1)
+        self.assertIn("最快下一個交易日才能賣", err)
         self.assertNotIn("Traceback", err)
+        code, text, _ = self.fill("--symbol", "2303", "--side", "sell", "--qty", "350", "--price", "112.0",
+                                  "--date", "2026-11-03")
+        self.assertEqual(code, 0)
+        self.assertIn("手續費 NT$55，證交稅 NT$117", text)
+        self.assertEqual(read(self.pf)["cash"], 300000 - 38554 + 39200 - 55 - 117)
+
+    def test_bad_fills(self):
+        for argv, msg in ((("--qty", "1500", "--price", "110.0"), "整股"),
+                          (("--qty", "1000", "--price", "110.3"), "升降單位"),
+                          (("--qty", "0", "--price", "110.0"), "正的"),
+                          (("--qty", "1000", "--price", "110.0", "--date", "11/02"), "--date")):
+            code, _, err = self.fill("--symbol", "2303", "--side", "buy", *argv)
+            self.assertEqual(code, 1, argv)
+            self.assertIn(msg, err, argv)
+            self.assertNotIn("Traceback", err)
+        code, _, err = self.fill("--symbol", "2303", "--side", "sell", "--qty", "1000", "--price", "110.0")
+        self.assertEqual(code, 1)
+        self.assertIn("持股只有 0 股", err)
+
+    def test_a_portfolio_needs_a_start(self):
+        write(self.cfg, {})
+        code, _, err = self.fill("--symbol", "2303", "--side", "buy", "--qty", "1000", "--price", "110.0")
+        self.assertEqual(code, 1)
+        self.assertIn("budget", err)
 
 
 if __name__ == "__main__":

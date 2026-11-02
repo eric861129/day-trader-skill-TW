@@ -15,7 +15,8 @@ ABOUT = ("11 Claude skills for day trading: scan thousands of charts, track brea
 ORDER_PATH = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine", "trader-budget",
               "trader-pelosi", "trader-risk", "trader-broker", "trader-alerts"]
 # converted to the Taiwan market so far: Chinese SKILL.md, tools on twmarket.py
-TW_SKILLS = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine"]
+TW_SKILLS = ["trader-scanner", "trader-entry", "trader-exit", "trader-timemachine", "trader-budget",
+             "trader-risk", "trader-broker"]
 V1_ONLY = ["trader-copycat", "trader-screener", "trader-tax", "trader-rebalance"]
 
 
@@ -135,17 +136,20 @@ class Repo(unittest.TestCase):
                         self.assertNotIn(bad, src, "%s/%s" % (s, f))
 
     def test_day_trading_limits_ship_in_the_example_config(self):
-        with open(os.path.join(ROOT, "trader-budget", "config.example.json")) as fh:
+        with open(os.path.join(ROOT, "trader-budget", "config.example.json"), encoding="utf-8") as fh:
             cfg = json.load(fh)
-        for k in ("max_loss_per_trade_usd", "max_daily_loss_usd", "max_trades_per_day",
-                  "min_reward_risk", "require_stop", "no_entries_after", "flat_by"):
+        for k in ("max_loss_per_trade_twd", "max_daily_loss_twd", "max_trades_per_day",
+                  "min_reward_risk", "require_stop", "no_entries_before", "no_entries_after", "flat_by",
+                  "day_trade_enabled", "fee_discount"):
             self.assertIn(k, cfg, k)
         self.assertIs(cfg["require_stop"], True)
-        self.assertIs(cfg.get("allow_short", False), False)
-        self.assertIs(cfg.get("allow_margin", False), False)
+        self.assertEqual(cfg["flat_by"], "13:20")    # before the 13:25 closing auction
+        # off until the user turns them on: 當沖 needs the broker's agreement, odd lots are held overnight
+        for k in ("day_trade_enabled", "allow_overnight", "allow_disposition", "allow_short", "allow_margin"):
+            self.assertIs(cfg.get(k, False), False, k)
 
     def test_paper_trading_is_the_default(self):
-        with open(os.path.join(ROOT, "trader-budget", "config.example.json")) as fh:
+        with open(os.path.join(ROOT, "trader-budget", "config.example.json"), encoding="utf-8") as fh:
             cfg = json.load(fh)
         self.assertIs(cfg["paper"], True)
         self.assertIs(cfg.get("allow_options", False), False)

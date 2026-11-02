@@ -86,8 +86,8 @@ ISIN_PAGES = (("TWSE", "2"), ("TPEx", "4"))
 ISIN_FILE = "C_public-%s.html"
 KEEP_SECTIONS = ("股票", "創新板", "ETF")
 MARKET_LABEL = {"TWSE": "上市", "TPEx": "上櫃"}
-PUNISH_URL = "https://openapi.twse.com.tw/v1/announcement/punish"
-TPEX_DISPOSAL_URL = "https://www.tpex.org.tw/openapi/v1/tpex_disposal_information"
+PUNISH_URL = tw.PUNISH_URL
+TPEX_DISPOSAL_URL = tw.TPEX_DISPOSAL_URL
 SPARK_MAX = 20      # Yahoo's spark answers 400 above 20 symbols
 PAUSE = 0.3         # seconds between requests: be polite to free endpoints
 BACKOFF = 5.0       # seconds to wait before the one retry after a 429
@@ -536,55 +536,11 @@ def refresh_calendar(years, trader_dir):
 
 # ---------------------------------------------------------------- 處置股
 
-_CN_NUM = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
-_MATCH = re.compile(r"每\s*([0-9０-９一二三四五六七八九十]+)\s*分鐘撮合")
-
-
-def _cn_int(text):
-    if text.isdigit():
-        return int(text)
-    if "十" in text:
-        tens, _, ones = text.partition("十")
-        return (_CN_NUM.get(tens, 1) if tens else 1) * 10 + (_CN_NUM.get(ones, 0) if ones else 0)
-    return _CN_NUM.get(text)
-
-
-def parse_period(text):
-    """'115/10/28～115/11/03' or '1151102~1151110' -> (start, end) dates, or None."""
-    parts = [p for p in re.split(r"\s*[～~]\s*", str(text or "").strip()) if p]
-    if len(parts) != 2:
-        return None
-    try:
-        return tw.roc_date(parts[0]), tw.roc_date(parts[1])
-    except ValueError:
-        return None
-
-
-def parse_disposition(twse_rows=None, tpex_rows=None):
-    """The two disposition lists -> {code: {name, market, start, end, every_minutes}}."""
-    out = {}
-    rows = [(r, "TWSE", "Code", "Name", "Detail") for r in (twse_rows or [])]
-    rows += [(r, "TPEx", "SecuritiesCompanyCode", "CompanyName", "DisposalCondition") for r in (tpex_rows or [])]
-    for r, market, k_code, k_name, k_text in rows:
-        if not isinstance(r, dict):
-            continue
-        code = str(r.get(k_code) or "").strip()
-        period = parse_period(r.get("DispositionPeriod"))
-        if not code or not period:
-            continue
-        m = _MATCH.search(str(r.get(k_text) or ""))
-        every = _cn_int(m.group(1)) if m else None
-        old = out.get(code)
-        if old:  # two dispositions of one stock: cover both
-            period = (min(old["start"], period[0]), max(old["end"], period[1]))
-            every = every or old["every_minutes"]
-        out[code] = {"name": str(r.get(k_name) or "").strip(), "market": market, "start": period[0],
-                     "end": period[1], "every_minutes": every}
-    return out
-
-
-def active_disposition(disp, day):
-    return {c: v for c, v in (disp or {}).items() if v["start"] <= day <= v["end"]}
+# The list parsing lives in twmarket.py (trader-risk reads the same lists).
+_cn_int = tw._cn_int
+parse_period = tw.parse_period
+parse_disposition = tw.parse_disposition
+active_disposition = tw.active_disposition
 
 
 def load_disposition(path):

@@ -14,7 +14,7 @@ from _load import load, ROOT, FIX
 alerts = load("trader-alerts", "alerts")
 
 QDIR = os.path.join(FIX, "trader-alerts")
-PLAN = os.path.join(FIX, "trader-budget", "plan-tsla.json")
+PLAN = os.path.join(FIX, "trader-alerts", "plan-tsla.json")
 DT = datetime.datetime
 UA = "Mozilla/5.0 (compatible; day-trader-skill/2.0; +https://github.com/Jakeschincariol/day-trader-skill)"
 
