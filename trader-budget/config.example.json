@@ -22,6 +22,7 @@
   "fee_min_twd": 20,
   "fee_min_odd_twd": 1,
   "extra_closed": {},
+  "broker": "manual",
   "broker_name": "",
   "paper": true,
   "blocked": [],
