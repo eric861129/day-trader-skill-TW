@@ -351,12 +351,38 @@ class Bars(unittest.TestCase):
         self.assertEqual(doc["mc"]["pool_to"], "2026-10-30")
         self.assertNotIn("2026-11-02", [t["date"] for t in doc["history"]["trades"]])
 
-    def test_a_missing_price_is_dropped(self):
+    def test_a_bar_without_a_price_is_five_quiet_minutes(self):
+        # Yahoo lists the stamp with no price when nobody traded: filled flat at the last close
         def hole(res):
             res["indicators"]["quote"][0]["close"][5] = None
         doc = machine(text=edited(hole), replays=200)
         self.assertEqual(doc["data"]["dropped"]["no_price"], 54)
-        self.assertEqual(doc["mc"]["pool_sessions"], 57)   # 2026-08-05 now has a gap
+        self.assertEqual(doc["mc"]["pool_sessions"], 58)   # 2026-08-05 stays in
+        self.assertEqual(doc["data"]["quiet_bars_filled"], {"days": 1, "bars": 1})
+        self.assertIn("1 個交易日有沒人成交的 5 分鐘（共 1 根）：用前一根的收盤補成平的 K 棒（量 0）。",
+                      "\n".join(tm.report(doc)))
+
+    def test_what_is_not_filled(self):
+        bar = lambda k, c: {"date": "2026-10-01", "slot": k, "start": "", "o": c, "h": c, "l": c, "c": c, "v": 1}
+        day = {k: bar(k, 29.0 + k / 100) for k in range(tm.SESSION_BARS) if k not in (7, 8)}
+        filled = tm.fill_quiet(day, {7, 8})
+        self.assertEqual((filled[8]["c"], filled[8]["h"], filled[8]["v"], filled[8]["start"]), (29.06, 29.06, 0, "09:40"))
+        self.assertIsNone(tm.fill_quiet(day, {7}))                                     # 8 is missing, not quiet
+        self.assertIsNone(tm.fill_quiet({k: b for k, b in day.items() if k}, {0, 7, 8}))   # no 09:00 bar
+        thin = {k: b for k, b in day.items() if k < 20}
+        self.assertIsNone(tm.fill_quiet(thin, set(range(20, tm.SESSION_BARS)) | {7, 8}))  # a halt, not a quiet stock
+
+    def test_a_thinly_traded_stock_has_enough_days(self):
+        # 協易機 4533 on 2026-11-03: quiet five-minute bars left only 9 of its 60 days complete
+        with gzip.open(os.path.join(DIR, "4533-60d5m.json.gz"), "rt", encoding="utf-8") as fh:
+            text = fh.read()
+        p = plan(symbol="4533", market="TPEx", name="協易機", date="2026-11-03", entry=29.75, stop=29.15,
+                 target=30.35, opening_range={"high": 29.7, "low": 28.65, "minutes": 15}, risk_per_share=0.6,
+                 tick=0.05, risk_ticks=12, prev_close=29.5, limit_up=32.45, limit_down=26.55)
+        doc = tm.time_machine(text, p, tm.parse_now("2026-11-03 09:47"), replays=200)
+        self.assertGreaterEqual(doc["mc"]["pool_sessions"], 40)
+        self.assertGreater(doc["data"]["quiet_bars_filled"]["bars"], 300)
+        self.assertEqual([x["date"] for x in doc["data"]["short_sessions_left_out"]], ["2026-10-23"])   # the typhoon day
 
     def test_empty_and_broken_data(self):
         empty = json.dumps({"chart": {"result": [{"meta": {"symbol": "2303.TW"}, "timestamp": [],

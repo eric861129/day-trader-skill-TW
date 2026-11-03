@@ -16,6 +16,8 @@ tw = load("trader-alerts", "twmarket")
 ADIR = os.path.join(FIX, "trader-alerts")
 MIS = os.path.join(FIX, "twmarket", "mis-2026-11-02.json")              # 2330, 6488, 0050, 00631L at 13:30
 MIS_BOTH = os.path.join(ADIR, "mis-2303-6488-2026-11-02.json")        # tse_ and otc_ channels for both
+MIS_PRE = os.path.join(ADIR, "premarket", "mis-2026-11-03-0841.json")  # 2303, 2308, 1815, 2317 before the open
+MIS_SESSION = os.path.join(ADIR, "session", "mis-2026-11-03-0941.json")  # 3665, 4533, 5202, 2614 at 09:41
 CHART_1M = os.path.join(FIX, "trader-entry", "2303-2026-11-02-1m.json")
 CHART_5M = os.path.join(FIX, "trader-entry", "2303-2026-11-02-5m.json")
 CHART_6488 = os.path.join(ADIR, "yahoo-6488.TWO-1m.json")
@@ -124,6 +126,37 @@ class Quotes(unittest.TestCase):
         self.assertEqual(sorted(q), ["2303", "6488"])
         self.assertEqual((q["2303"]["market"], q["2303"]["price"], q["2303"]["name"]), ("TWSE", 110.0, "聯電"))
         self.assertEqual(q["6488"]["market"], "TPEx")
+
+    def test_before_the_first_trade_mis_has_the_reference_and_todays_limits(self):
+        # the real 08:41 answer on 2026-11-03: no trade yet, yesterday's close, today's limits, the trial match
+        q = alerts.mis_quotes(read(MIS_PRE))
+        self.assertEqual(sorted(q), ["1815", "2303", "2308", "2317"])
+        u = q["2303"]
+        self.assertEqual((u["price"], u["prev_close"], u["limit_up"], u["limit_down"], u["trial"], u["no_trade"]),
+                         (110.0, 110.0, 121.0, 99.0, 107.0, True))
+        self.assertEqual(u["time"], "2026-11-03T00:41:49Z")
+        self.assertEqual(alerts.quote_line("2303", u),
+                         "聯電 2303（上市）  110.0  昨收，今天還沒有成交  試撮 107.0（-2.73%）  "
+                         "漲停 121.0／跌停 99.0  08:41:49 的報價  [mis]")
+        self.assertIn("試撮 1,265（-6.64%）", alerts.quote_line("2308", q["2308"]))
+        self.assertEqual(q["1815"]["market"], "TPEx")
+        self.assertNotIn("no_trade", alerts.mis_quotes(read(MIS_BOTH))["2303"])   # it traded: the last trade
+
+    def test_in_the_session_a_snapshot_without_a_trade_reads_the_best_bid(self):
+        # 2026-11-03 09:41: MIS left out 3665's last trade; Yahoo said 1,605 (09:21), MIS bid 1,660
+        q = alerts.mis_quotes(read(MIS_SESSION))
+        b = q["3665"]
+        self.assertEqual((b["price"], b["book"], b["bid"], b["ask"]), (1660.0, "bid", 1660.0, 1665.0))
+        self.assertEqual(b["when"], "09:39:57 委買價（這一刻沒有成交價）")
+        self.assertEqual((q["5202"]["price"], q["5202"]["ask"]), (16.3, None))   # locked limit up: market bids first
+        self.assertEqual((q["2614"]["price"], q["2614"].get("book")), (13.6, None))   # a trade in the snapshot
+        self.assertEqual(tw._best("0.0000_16.3000_16.2500_"), 16.3)
+        self.assertIsNone(tw._best("-"))
+
+    def test_a_yahoo_trade_from_an_earlier_day_says_which_day(self):
+        doc = read(CHART_1M)
+        self.assertEqual(alerts.chart_quote(doc, now("2026-11-02 14:00"))[1]["when"], "13:30:01 成交")
+        self.assertEqual(alerts.chart_quote(doc, now("2026-11-03 08:39"))[1]["when"], "11-02 13:30:01 成交")
 
     def test_a_replay_reads_the_last_bar_that_ended(self):
         doc = read(CHART_1M)
@@ -265,6 +298,19 @@ class Network(unittest.TestCase):
         self.assertIn("No data found", err[-1])
         self.assertEqual(net.sleeps, [alerts.PAUSE])           # a pause before the second Yahoo request
 
+    def test_before_the_open_mis_is_enough(self):
+        # 2026-11-03 08:39 asked Yahoo for 86 codes (56 s) and printed yesterday's limits
+        net = self.use([("getStockInfo", 200, fixture_text(MIS_PRE))])
+        q, err = alerts.get_quotes(["2303", "1815"], "mis")
+        self.assertEqual((err, len(net.urls)), ([], 1))
+        self.assertEqual((q["2303"]["limit_up"], q["2303"]["source"]), (121.0, "mis"))
+
+    def test_in_the_session_mis_bid_beats_a_20_minute_old_yahoo_trade(self):
+        net = self.use([("getStockInfo", 200, fixture_text(MIS_SESSION))])
+        q, err = alerts.get_quotes(["3665", "4533"], "mis")
+        self.assertEqual((err, len(net.urls)), ([], 1))
+        self.assertEqual((q["4533"]["price"], q["4533"]["market"]), (29.75, "TPEx"))
+
     def test_mis_down_means_yahoo_for_everything(self):
         net = self.use([("getStockInfo", urllib.error.URLError("timed out"), ""),
                         ("6488.TWO?", 200, fixture_text(CHART_6488))])
@@ -324,6 +370,9 @@ class Rules(unittest.TestCase):
                                  status("2026-11-02 14:00"), {}, now("2026-11-02 14:00"))[0]
         self.assertIn("最後成交 110.0", closed[0]["message"])
         self.assertIn("警示價 120.0", closed[0]["message"])
+        early = alerts.evaluate(rules, {"2303": quote(108.0, no_trade=True, when="08:41:49 的報價")},
+                                status("2026-11-03 08:41"), {}, now("2026-11-03 08:41"))[0]
+        self.assertEqual(early[0]["message"], "聯電 2303 昨收 108.0（08:41:49 的報價），小於或等於你的停損 108.5（計畫停損）。")
 
     def test_pct_move_from_the_previous_close_once_a_day(self):
         rules = [{"id": "m", "symbol": "2303", "type": "pct_move", "pct": 2}]

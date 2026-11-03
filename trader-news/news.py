@@ -93,7 +93,8 @@ KEYWORDS = [
     ("股利／庫藏股／增減資", r"股利|配息|除息|除權|殖利率|庫藏股|買回本公司股份|增資|減資|公司債|可轉債|私募|籌資"),
     ("人事", r"董事長|總經理|執行長|財務長|發言人|人事|異動|辭任|請辭|接任|解任"),
     ("董事會", r"董事會"),
-    ("風險", r"停工|火災|爆炸|地震|斷電|停電|違約|跳票|重整|破產|下市|跌停|罷工|資安|駭客|勒索|召回"),
+    # 資安 alone is the 資安股 sector as often as an attack: "資安爆發…強攻漲停" (2026-11-03)
+    ("風險", r"停工|火災|爆炸|地震|斷電|停電|違約|跳票|重整|破產|下市|跌停|罷工|資安事件|網路攻擊|駭客|勒索|召回"),
     ("處置／注意股", r"處置|注意股|警示股|全額交割|分盤"),
     ("暫停交易", r"暫停交易|停止買賣|暫停買賣|終止上市"),
     ("澄清報導", r"澄清|說明.{0,20}報導"),
@@ -541,6 +542,51 @@ def tag(items, watch):
     return items
 
 
+def lookalikes(watch, universe):
+    """{code: [(code, name)]}: listed stocks whose name starts with the same two characters as a
+    watched one (台達電 2308 and 台達化 1309). Yahoo's per-stock feed searches by name and mixes
+    them in: on 2026-11-02, 6 of the 17 items in 2308's feed were about 台達化."""
+    out = {}
+    for code, w in watch.items():
+        name = w.get("name") or ""
+        if len(name) < 2:
+            continue
+        sims = sorted((c, u["name"]) for c, u in universe.items()
+                      if c != code and len(u.get("name") or "") >= 2 and u["name"][:2] == name[:2]
+                      and name not in u["name"] and u["name"] not in name)
+        if sims:
+            out[code] = sims
+    return out
+
+
+def drop_lookalikes(items, watch, universe):
+    """Leave out a headline that names a look-alike stock and never names the stock it was fetched
+    for. Returns (kept, dropped); a dropped item carries "lookalike": (code, name)."""
+    sims = lookalikes(watch, universe)
+    pats = mention_patterns(watch)
+    kept, dropped = [], []
+    for it in items:
+        other = None
+        if it["kind"] == "headline" and it["code"] in sims and not pats[it["code"]].search(it["title"]):
+            other = next(((c, n) for c, n in sims[it["code"]] if n in it["title"]), None)
+        if other:
+            it["lookalike"] = other
+            dropped.append(it)
+        else:
+            kept.append(it)
+    return kept, dropped
+
+
+def lookalike_note(dropped, watch):
+    pairs = {}
+    for it in dropped:
+        key = (it["code"], it["lookalike"])
+        pairs[key] = pairs.get(key, 0) + 1
+    parts = ["%s %s 的新聞裡有 %d 則其實在講%s %s" % (watch[c]["name"] or "", c, n, o[1], o[0])
+             for (c, o), n in sorted(pairs.items())]
+    return "略過名稱相近的股票的新聞：%s。" % "；".join(parts)
+
+
 def _norm(title):
     return re.sub(r"[\W_]+", "", (title or "").lower())
 
@@ -683,7 +729,7 @@ def _json_ready(rows):
 
 # ---------------------------------------------------------------- main
 
-def build_watch(args, notes):
+def build_watch(args, notes, universe):
     skipped = []
     known = watch_from_files(args.portfolio, args.watchlist, args.plan, skipped)
     if args.symbols:
@@ -699,7 +745,7 @@ def build_watch(args, notes):
         watch = known
         if skipped:
             notes.append("略過不是台股代號的：%s" % "、".join(skipped))
-    return fill_from_universe(watch, tw.load_universe(args.universe))
+    return fill_from_universe(watch, universe)
 
 
 def main(argv=None):
@@ -728,7 +774,8 @@ def main(argv=None):
     notes = []
     try:
         now = aware(tw.parse_now(args.now))
-        watch = build_watch(args, notes)
+        universe = tw.load_universe(args.universe)
+        watch = build_watch(args, notes, universe)
     except (NewsError, ValueError) as exc:
         print("news.py：%s" % exc, file=sys.stderr)
         return 2
@@ -748,8 +795,14 @@ def main(argv=None):
     state = load_json(args.state) or {}
     items = collect(fetcher, watch, now, args.hours, not args.no_yahoo, not args.no_google,
                     not args.no_mops, args.mops_max, notes)
+    items, dropped = drop_lookalikes(items, watch, universe)
     items = dedupe(tag(items, watch))
     shown = select(items, state, now, args.hours, args.all, ahead)
+    # count only the look-alikes this check would have shown, and remember them like the rest:
+    # 2026-11-03 08:38 with --hours 16 still counted the 6 skipped the night before
+    skipped = select(dropped, state, now, args.hours, args.all, ahead)
+    if skipped:
+        notes.append(lookalike_note(skipped, watch))
     moves = [] if args.no_moves else collect_moves(fetcher, watch, quotes, now, notes)
     if args.json:
         mv = []
@@ -762,7 +815,7 @@ def main(argv=None):
     else:
         sys.stdout.write(render(shown, notes, now, moves, args.move_pct))
     if not args.dry_run:
-        remember(items, state, now, ahead)
+        remember(items + dropped, state, now, ahead)
         tw.write_json(args.state, state)
     return 0 if any(i["new"] for i in shown) else 1
 

@@ -38,7 +38,7 @@ python3 "${CLAUDE_SKILL_DIR}/ticket.py" show                      # 每一張，
 python3 "${CLAUDE_SKILL_DIR}/ticket.py" approve --index 1 --reply "是，買 1 張聯電"
 python3 "${CLAUDE_SKILL_DIR}/ticket.py" result --index 1 --status placed --order-no A1234
 python3 "${CLAUDE_SKILL_DIR}/ticket.py" fill --symbol 2303 --side buy --qty 1000 --price 110.0
-python3 "${CLAUDE_SKILL_DIR}/ticket.py" flatten --symbol 2303     # 13:20 前出清今天的當沖
+python3 "${CLAUDE_SKILL_DIR}/ticket.py" flatten --symbol 2303     # 賣掉今天的當沖：停損、停利，或 13:20 前出清
 python3 "${CLAUDE_SKILL_DIR}/ticket.py" log
 ```
 

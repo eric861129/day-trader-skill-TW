@@ -688,6 +688,209 @@ class Cli(unittest.TestCase):
         self.assertIn("先跑 /trader-scanner", err)
 
 
+MIS_SESSION = os.path.join(FIX, "trader-alerts", "session", "mis-2026-11-03-0941.json")
+MIS_DAY = datetime.date(2026, 11, 3)
+
+
+def mis_snap(at, high, low, trade, trade_at, lots):
+    return {"at": at, "high": high, "low": low, "open": 29.0, "trade": trade, "trade_at": trade_at,
+            "bid": None, "ask": None, "volume_lots": lots}
+
+
+# SYNTHETIC, shaped like 協易機 4533 on 2026-11-03: Yahoo's range was 29.65 to 28.65 and the
+# 09:15 bar closed at 29.75 (09:20 trigger); the 09:41:30 row is the real MIS answer.
+MIS_ROWS = {"0905": mis_snap("09:05:03", 29.4, 28.65, 29.0, "09:05:01", 400),
+            "0915": mis_snap("09:15:02", 29.65, 28.65, 29.55, "09:14:58", 1100),
+            "0919": mis_snap("09:19:41", 29.7, 28.65, 29.7, "09:19:35", 1300),
+            "0920": mis_snap("09:20:04", 29.75, 28.65, 29.75, "09:19:52", 1350),
+            "0941": mis_snap("09:41:30", 30.25, 28.65, 29.7, "09:40:15", 2096)}
+
+
+def mis_stock(*keys, **extra):
+    snaps = [MIS_ROWS[k] for k in keys] + list(extra.pop("snaps", []))
+    return dict({"name": "協易機", "market": "TPEx", "prev_close": 29.5, "snaps": snaps}, **extra)
+
+
+def mis_eval(stock, now, **kw):
+    return entry.evaluate_mis(stock, "4533", tpe("2026-11-03 " + now), **kw)
+
+
+class MisMode(unittest.TestCase):
+    """--source mis: the opening range at 09:15 and the 09:20 close in real time, not 20 minutes late."""
+
+    def test_parse_mis_reads_the_last_trade_when_the_snapshot_has_none(self):
+        with open(MIS_SESSION, encoding="utf-8") as fh:
+            q = tw.parse_mis(fh.read())
+        self.assertEqual((q["3665"]["last"], q["3665"]["trade_price"], q["3665"]["trade_time"]), (None, 1665.0, "09:38:32"))
+        self.assertEqual((q["4533"]["high"], q["4533"]["low"], q["4533"]["trade_price"], q["4533"]["time"]),
+                         (30.25, 28.65, 29.7, "09:41:30"))
+
+    def test_the_0920_trigger_at_0920(self):
+        r = mis_eval(mis_stock("0905", "0915", "0919", "0920"), "09:20:10")
+        self.assertEqual(r["status"], "triggered")
+        self.assertEqual((r["opening_range"]["high"], r["opening_range"]["low"], r["opening_range"]["exact"]),
+                         (29.65, 28.65, True))
+        t = r["trigger"]
+        self.assertEqual((t["time"], t["bar_start"], t["bar_index"], t["price"], t["exact"]), ("09:20", "09:15", 3, 29.75, True))
+        text = "\n".join(entry.describe(r))
+        self.assertIn("（證交所 MIS 盤中快照，只差幾秒），資料到 09:20:04", text)
+        self.assertIn("開盤區間 09:00-09:15：高點 29.65，低點 28.65（MIS 09:15:02 快照裡的當日最高最低）。", text)
+        self.assertIn("觸發  09:20，價格 29.75：09:15 K 棒（bar 3）收在開盤區間高點 29.65 之上", text)
+        self.assertIn("現在就是進場時機", text)
+        self.assertNotIn("data_note", r)
+
+    def test_a_trade_just_before_the_close_stands_in_for_it(self):
+        r = mis_eval(mis_stock("0915", "0919"), "09:21")
+        self.assertEqual((r["status"], r["trigger"]["price"], r["trigger"]["exact"]), ("triggered", 29.7, False))
+        self.assertIn("收盤價取自 09:19:35 的成交", r["data_note"])
+
+    def test_a_bar_no_snapshot_saw_is_said(self):
+        busy = mis_snap("09:22:30", 29.8, 28.65, 29.8, "09:22:10", 1500)
+        r = mis_eval(mis_stock("0915", snaps=[busy]), "09:22:40")
+        self.assertEqual(r["status"], "waiting")
+        self.assertEqual(r["unknown_bars"], ["09:15"])
+        self.assertIn("09:15 這 1 根的 K 棒收盤沒有快照看到", r["reason"])
+        self.assertIn("entry.py watch --source mis", r["reason"])
+        self.assertEqual(r["forming"]["price"], 29.8)
+
+    def test_a_quiet_stock_shows_its_close_later(self):
+        thin = mis_snap("09:30:05", 29.8, 28.65, 29.8, "09:18:00", 1200)
+        r = mis_eval(mis_stock("0915", snaps=[thin]), "09:30:10")
+        self.assertEqual((r["status"], r["trigger"]["time"], r["trigger"]["exact"]), ("triggered", "09:20", True))
+        self.assertEqual(r["unknown_bars"], [])            # 09:20 and 09:25 had no trade
+        self.assertEqual(r["minutes_since"], 10)
+
+    def test_the_range_from_a_snapshot_a_little_late(self):
+        late = mis_snap("09:15:20", 29.7, 28.65, 29.7, "09:15:10", 1150)
+        r = mis_eval(mis_stock("0905", snaps=[late]), "09:16")
+        self.assertFalse(r["opening_range"]["exact"])
+        self.assertIn("多含了 09:15 到 09:15:20 之間的成交", "\n".join(entry.describe(r)))
+        same = mis_snap("09:15:40", 29.4, 28.65, 29.3, "09:15:30", 1150)        # same high and low as 09:05
+        self.assertTrue(mis_eval(mis_stock("0905", snaps=[same]), "09:16")["opening_range"]["exact"])
+
+    def test_too_late_for_the_range(self):
+        r = mis_eval(mis_stock("0941"), "09:42")
+        self.assertEqual((r["status"], r["final"]), ("no-data", True))
+        self.assertIn("不能當開盤區間", r["reason"])
+        thin = mis_snap("09:41:30", 29.4, 28.65, 29.3, "09:14:30", 900)        # nothing traded since 09:14:30
+        self.assertEqual(mis_eval(mis_stock(snaps=[thin]), "09:42")["opening_range"]["high"], 29.4)
+
+    def test_before_the_range_ends(self):
+        r = mis_eval(mis_stock("0905"), "09:10")
+        self.assertEqual((r["status"], r["phase"]), ("waiting", "forming"))
+        self.assertIn("目前高點 29.40，低點 28.65（MIS 到 09:05:03，還在形成）", "\n".join(entry.describe(r)))
+        self.assertEqual(mis_eval(mis_stock(), "08:50")["phase"], "pre-open")
+        with self.assertRaises(entry.EntryError):
+            mis_eval(mis_stock("0915"), "09:20", min_volume_x=1.5)
+
+    def test_a_snapshot_without_a_new_trade_moves_the_last_one_forward(self):
+        q = {"time": "09:20:04", "date": "20261103", "name": "協易機", "market": "TPEx", "high": 29.75, "low": 28.65,
+             "open": 29.0, "trade_price": 29.75, "trade_time": "09:19:52", "volume_lots": 1350, "bid": 29.7, "ask": 29.75}
+        log = entry.log_mis(None, {"4533": q}, MIS_DAY)
+        log = entry.log_mis(log, {"4533": dict(q, time="09:20:14", bid=29.65)}, MIS_DAY)
+        self.assertEqual([(s["at"], s["bid"]) for s in log["stocks"]["4533"]["snaps"]], [("09:20:14", 29.65)])
+        log = entry.log_mis(log, {"4533": dict(q, time="09:20:24", trade_price=29.8, trade_time="09:20:20",
+                                                volume_lots=1352)}, MIS_DAY)
+        self.assertEqual([s["at"] for s in log["stocks"]["4533"]["snaps"]], ["09:20:14", "09:20:24"])
+        log = entry.log_mis(log, {"4533": dict(q, time="09:20:34", date="20261102")}, MIS_DAY)   # another day
+        self.assertEqual(len(log["stocks"]["4533"]["snaps"]), 2)
+
+    def test_a_long_list_is_asked_fifty_channels_at_a_time(self):
+        asked = []
+        real_open, real_sleep = entry._open_url, entry._sleep
+        entry._open_url = lambda url, timeout=20: asked.append(url) or '{"msgArray": []}'
+        entry._sleep = lambda s: None
+        try:
+            entry.mis_get([("%04d" % (1000 + i), "TWSE") for i in range(60)] + [("4533", None)])
+        finally:
+            entry._open_url, entry._sleep = real_open, real_sleep
+        self.assertEqual([len(u.split("ex_ch=")[1].split("&")[0].split("|")) for u in asked], [50, 12])
+        self.assertIn("tse_4533.tw|otc_4533.tw", asked[1])
+
+    def test_yesterdays_trade_is_not_today(self):
+        pre = dict(mis_snap("08:59:50", None, None, 30.0, "13:30:00", 0))
+        r = mis_eval(mis_stock(snaps=[pre, MIS_ROWS["0915"]]), "09:16")
+        self.assertEqual(r["opening_range"]["high"], 29.65)
+        self.assertEqual(entry.mis_closes([dict(pre, _at=DT(2026, 11, 3, 8, 59, 50))], MIS_DAY, 300), ({}, set()))
+
+
+class MisCli(unittest.TestCase):
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.cwd = os.getcwd()
+        os.chdir(self.d)
+        os.makedirs(os.path.join("trader", "state"))
+        shutil.copy(UNIVERSE, os.path.join("trader", "universe.txt"))
+        self.log = os.path.join("trader", "state", "mis-2026-11-03.json")
+        with open(self.log, "w", encoding="utf-8") as fh:
+            json.dump({"date": "2026-11-03", "source": "mis",
+                       "stocks": {"4533": mis_stock("0905", "0915", "0919", "0920", "0941")}}, fh, ensure_ascii=False)
+
+    def tearDown(self):
+        os.chdir(self.cwd)
+        shutil.rmtree(self.d)
+
+    def test_check_replays_todays_log_and_writes_the_entry(self):
+        code, text, _ = run(["check", "4533", "--source", "mis", "--now", "2026-11-03 09:20:10", "--write"])
+        self.assertEqual(code, 0, text)
+        with open(os.path.join("trader", "entry.json"), encoding="utf-8") as fh:
+            e = json.load(fh)
+        self.assertEqual((e["source"], e["time"], e["price"], e["opening_range"]),
+                         ("mis", "09:20", 29.75, {"high": 29.65, "low": 28.65, "minutes": 15}))
+        code, text, _ = run(["check", "4533", "--source", "mis", "--offline", self.log])   # as of its newest snapshot
+        self.assertEqual(code, 0)
+        self.assertIn("09:41 台北", text)
+        self.assertIn("那是 21 分鐘前的事", text)
+
+    def test_watch_replays_the_log_from_the_open(self):
+        code, text, _ = run(["watch", "4533", "--source", "mis", "--offline", self.log, "--every", "30"])
+        self.assertEqual(code, 0, text)
+        self.assertIn("開盤區間 09:00-09:15：高點 29.65，低點 28.65", text)
+        self.assertIn("09:15 K 棒  收 29.70  觸發", text)           # at 09:20:02, from the 09:19:41 snapshot
+        self.assertIn("收盤價取自 09:19:35 的成交", text)
+        with open(os.path.join("trader", "entry.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["source"], "mis")
+        code, _, err = run(["watch", "4533", "--source", "mis", "--every", "3"])
+        self.assertEqual(code, 1)
+        self.assertIn("至少 5 秒", err)
+
+    def test_watchlist_is_one_request(self):
+        with open(os.path.join("trader", "watchlist.json"), "w", encoding="utf-8") as fh:
+            json.dump({"hits": [{"symbol": "4533", "setups": ["orb"]}, {"symbol": "2303", "setups": ["orb"]}]}, fh)
+        code, text, _ = run(["watchlist", "--source", "mis", "--now", "2026-11-03 09:20:10"])
+        self.assertEqual(code, 0, text)
+        rows = text.splitlines()
+        self.assertTrue(rows[1].startswith("4533    觸發      09:20  29.75"), rows[1])
+        self.assertTrue(rows[2].startswith("2303    沒資料"), rows[2])
+        self.assertIn("證交所 MIS 盤中快照", text)
+
+    def test_live_adds_a_snapshot_to_todays_log(self):
+        os.remove(self.log)
+        with open(MIS_SESSION, encoding="utf-8") as fh:
+            body = fh.read()
+        asked = []
+        real_open, real_now = entry._open_url, entry.utc_now
+
+        def fake_open(url, timeout=20):
+            asked.append(url)
+            return body
+        entry._open_url = fake_open
+        entry.utc_now = lambda: DT(2026, 11, 3, 1, 41, 20)            # 09:41:20, ten seconds behind MIS
+        try:
+            code, text, _ = run(["check", "4533", "--source", "mis"])
+        finally:
+            entry._open_url, entry.utc_now = real_open, real_now
+        self.assertEqual(code, 1)
+        self.assertEqual(len(asked), 1)
+        self.assertIn("ex_ch=otc_4533.tw", asked[0])
+        self.assertIn("09:41 台北", text)
+        self.assertIn("不能當開盤區間", text)
+        with open(self.log, encoding="utf-8") as fh:
+            snaps = json.load(fh)["stocks"]["4533"]["snaps"]
+        self.assertEqual(snaps, [{"at": "09:41:30", "high": 30.25, "low": 28.65, "open": 29.0, "trade": 29.7,
+                                  "trade_at": "09:40:15", "bid": 29.75, "ask": 29.8, "volume_lots": 2096}])
+
+
 class SkillDoc(unittest.TestCase):
     def test_skill_md(self):
         with open(os.path.join(ROOT, "trader-entry", "SKILL.md"), encoding="utf-8") as fh:

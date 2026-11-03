@@ -389,6 +389,27 @@ class Flow(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("沒有要出清的當沖", err)
 
+    def test_a_stop_before_13_20_and_the_ticket_after(self):
+        # 2026-11-03: 4533 stopped out at 10:48; the sell said "13:20 前出清", and at 13:21 the
+        # filled ticket showed as BLOCKED (a short without a stop) instead of already sent
+        self.fill_reel()
+        stop = "2026-11-02 10:48"
+        code, text, _ = self.flatten(stop)
+        self.assertEqual(code, 0)
+        why = self.orders_now()[0]["why"]
+        self.assertTrue(why.startswith("提前出場：賣掉今天 聯電 2303"), why)
+        self.assertIn("最晚 13:20 前出清", why)
+        self.pass_risk(kinds={1: "exit"})
+        self.assertEqual(run(self.args("approve", "--index", "1", "--reply", "yes", now=stop))[0], 0)
+        run(self.args("result", "--index", "1", "--status", "placed", "--filled-qty", "1000",
+                      "--filled-price", "108.0", "--portfolio", self.pf, now="2026-11-02 10:54"))
+        self.pass_risk(verdicts={1: ("BLOCK", ["放空：要賣的 2303 比持有的多（持有 0 股）", "重複：今天已經送出過賣出 2303"])})
+        code, text, _ = run(self.args("show", now="2026-11-02 13:21"))
+        self.assertEqual(code, 1)
+        self.assertIn("DONE：已送出（10:54）", text)
+        self.assertNotIn("BLOCKED", text)
+        self.assertNotIn("放空", text)
+
     def test_the_closing_auction_takes_limit_rod_only(self):
         self.fill_reel()
         code, text, _ = self.flatten("2026-11-02 13:26")

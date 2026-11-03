@@ -294,21 +294,64 @@ def split_sessions(bars):
     return days
 
 
-def full_sessions(days, before, seen=()):
-    """Full sessions (all 53 bars) strictly before the plan's date, oldest first,
-    and the short ones that were left out (gaps, a halt). A day in seen with no
-    priced bar at all (Yahoo keeps an empty day when the market stops trading
-    without notice, like a typhoon day) is a short session with 0 bars."""
-    full, short = [], []
+def quiet_slots(result):
+    """{date: {slot}}: on-grid 5-minute stamps in continuous trading that Yahoo lists with no
+    price. That is five minutes nobody traded: 4533 協易機 had 1 to 16 of them on most of its last
+    60 trading days (checked 2026-11-03). A stamp that is missing altogether is not one."""
+    out = {}
+    stamps = result.get("timestamp") or []
+    closes = ((((result.get("indicators") or {}).get("quote") or [{}])[0]) or {}).get("close") or []
+    for i, ts in enumerate(stamps):
+        if ts is None or int(ts) % INTERVAL or (i < len(closes) and closes[i] is not None):
+            continue
+        local = tw.to_taipei(utc_of(ts))
+        mins = local.hour * 60 + local.minute - OPEN_MIN
+        if 0 <= mins < SESSION_BARS * 5:
+            out.setdefault(local.date().isoformat(), set()).add(mins // 5)
+    return out
+
+
+def fill_quiet(s, quiet):
+    """A day's {slot: bar} with its quiet slots filled flat at the last close (volume 0), or None
+    when it cannot be: no 09:00 bar, a slot that is missing rather than quiet, or fewer than half
+    of the bars priced (a halt, not a quiet stock)."""
+    if 0 not in s or len(s) < SESSION_BARS // 2 + 1:
+        return None
+    out = dict(s)
+    for k in range(1, SESSION_BARS):
+        if k in out:
+            continue
+        if k not in quiet:
+            return None
+        c = out[k - 1]["c"]
+        out[k] = {"date": out[0]["date"], "slot": k, "start": clock24(OPEN_MIN + 5 * k),
+                  "o": c, "h": c, "l": c, "c": c, "v": 0, "quiet": True}
+    return out
+
+
+def full_sessions(days, before, seen=(), quiet=None):
+    """Full sessions (all 53 bars) strictly before the plan's date, oldest first, the short
+    ones that were left out (gaps, a halt), and how many bars were filled. A day in seen with
+    no priced bar at all (Yahoo keeps an empty day when the market stops trading without
+    notice, like a typhoon day) is a short session with 0 bars. A day whose only holes are
+    quiet slots (see quiet_slots) is filled flat (fill_quiet) and counts as full."""
+    full, short, filled = [], [], {"days": 0, "bars": 0}
+    quiet = quiet or {}
     for d in sorted(set(days) | set(seen)):
         if d >= before:
             continue
         s = days.get(d, {})
+        if len(s) < SESSION_BARS and quiet.get(d):
+            done = fill_quiet(s, quiet[d])
+            if done is not None:
+                filled["days"] += 1
+                filled["bars"] += SESSION_BARS - len(s)
+                s = done
         if len(s) == SESSION_BARS:
             full.append((d, [s[i] for i in range(SESSION_BARS)]))
         else:
             short.append({"date": d, "bars": len(s)})
-    return full, short
+    return full, short, filled
 
 
 def session_dates(result):
@@ -826,7 +869,7 @@ def time_machine(text, plan, now_utc, replays=10000, seed=19, window=2, until=No
     unknown = cal.unknown_note(datetime.date.fromisoformat(plan["date"]))
     if unknown:
         warn.append(unknown)
-    sessions, short = full_sessions(days, plan["date"], session_dates(result))
+    sessions, short, filled = full_sessions(days, plan["date"], session_dates(result), quiet_slots(result))
     for s in short:
         why = cal.closed(datetime.date.fromisoformat(s["date"]))
         if why:
@@ -873,7 +916,7 @@ def time_machine(text, plan, now_utc, replays=10000, seed=19, window=2, until=No
         "source": source,
         "data": {"symbol": msym or tw.yahoo_symbol(code, plan["market"]), "interval": "5m", "range": "60d",
                  "last_bar": "%s %s 台北" % (last_bar["date"], last_bar["start"]),
-                 "dropped": dropped, "short_sessions_left_out": short},
+                 "dropped": dropped, "short_sessions_left_out": short, "quiet_bars_filled": filled},
         "plan": plan_out,
         "mc": mc,
         "history": history,
@@ -954,6 +997,10 @@ def report(doc):
     if gaps:
         lines.append("略過 %d 個 K 棒不完整的交易日：%s。"
                      % (len(gaps), "、".join("%s（%d 根）" % (x["date"], x["bars"]) for x in gaps)))
+    filled = doc["data"].get("quiet_bars_filled") or {}
+    if filled.get("bars"):
+        lines.append("%d 個交易日有沒人成交的 5 分鐘（共 %d 根）：用前一根的收盤補成平的 K 棒（量 0）。"
+                     % (filled["days"], filled["bars"]))
     lines.append(doc["note"] + "用 --seed %d 可以重跑。" % m["seed"])
     return lines
 

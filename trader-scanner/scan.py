@@ -842,6 +842,18 @@ def orb_window(now_utc, at, or_minutes, until, explicit_day=None, cal=None):
     return day, cutoff
 
 
+def data_cutoff(data, day, cutoff):
+    """Live Yahoo bars for Taiwan run about 20 minutes behind (2026-11-03 09:22: the newest point
+    was 09:02:35), and usable() wants every slot up to the cutoff, so a live scan found nothing all
+    day. -> (the minute of the newest point when it is a bar or more behind the cutoff, the delay
+    in minutes), else (cutoff, None)."""
+    latest = max((ts_to_taipei(s["t"][-1]) for s in (data or {}).values() if s.get("t")), default=None)
+    if latest is None or latest.date() != day or latest > cutoff - datetime.timedelta(minutes=BAR_MIN):
+        return cutoff, None
+    seen = latest.replace(second=0, microsecond=0)
+    return seen, int((cutoff - seen).total_seconds() // 60)
+
+
 def scan_orb(stage1, symbols, day, cutoff, or_minutes, min_price=0.0, min_volume=0, confirm=None,
              max_confirm=None, uni=None):
     """stage1 = {SYM: series} with closes (spark or v8). confirm(sym) -> series with highs/lows
@@ -1206,6 +1218,9 @@ def cmd_orb(a):
                 progress(a, "  第二階段：已抓 %d 張 v8 圖" % len(done))
             return parse_chart(yahoo_get(chart_path(sym, rng, "%dm" % BAR_MIN)), sym)
     symbols = settle(symbols, pairs, data, failed)
+    delay = None
+    if not a.offline:
+        cutoff, delay = data_cutoff(data, day, cutoff)
     hits, counts, failed2 = scan_orb(data, symbols, day, cutoff, a.or_minutes, a.min_price, a.min_volume, confirm,
                                      a.max_confirm, uni)
     failed = dict(failed or {})
@@ -1220,6 +1235,8 @@ def cmd_orb(a):
            "interval": "%dm" % BAR_MIN, "filters": {"min_price": a.min_price, "min_volume": a.min_volume},
            "disposition": {"checked": disp is not None, "held": [c for c, _ in held]},
            "note": NOTE, "hits": hits}
+    if delay:
+        doc["data_delay_minutes"] = delay
     if a.offline:
         doc["offline"] = os.path.basename(a.offline.rstrip("/\\"))
     if not a.no_write:
@@ -1232,6 +1249,10 @@ def cmd_orb(a):
     note = cal.unknown_note(day)
     if note:
         print(note + "。")
+    first_close = slot(day, a.or_minutes // BAR_MIN + 1)
+    if delay:
+        print("Yahoo 的台股盤中資料延遲約 %d 分鐘：最新只到 %s，所以只看 %s 前收完的 K 棒。"
+              % (delay, tw.hm(cutoff), tw.hm(cutoff)))
     print("抓到 %s 檔中的 %s 檔圖%s；%s 檔可用%s；%s 檔候選，%s 檔用真實高低點確認。"
           % ("{:,}".format(len(symbols)), "{:,}".format(counts["fetched"]),
              ("（%s 檔失敗或沒有資料）" % "{:,}".format(nfailed)) if nfailed else "",
@@ -1253,6 +1274,12 @@ def cmd_orb(a):
                 "  漲停：可能買不到" if h.get("at_limit_up") else ""))
         if len(hits) > a.show:
             print("  ...還有 %d 檔在 watchlist 裡（--show N 可以多印）。" % (len(hits) - a.show))
+    elif cutoff < first_close:
+        wait = first_close + datetime.timedelta(minutes=delay or 0)
+        print("區間後的第一根 K 棒 %s 才收完，加上延遲約 %s 才看得到：到時候再跑一次。這不是「沒有突破」。"
+              % (tw.hm(first_close), tw.hm(wait)))
+    elif not counts["scanned"]:
+        print("沒有一檔有 09:00 到 %s 完整的 5 分 K，判斷不了，這不是「沒有突破」。" % tw.hm(cutoff))
     else:
         print("到 %s 為止，沒有圖收盤站上開盤區間高點。" % tw.hm(cutoff))
     line = disposition_line(held, a.keep_disposition, _names(hits))

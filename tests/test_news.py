@@ -152,6 +152,9 @@ class Tagging(unittest.TestCase):
         self.assertIn("併購", self.tags("聯電宣布公開收購子公司股權")[0])
         self.assertIn("總經", self.tags("Fed 降息、CPI 降溫，台股期貨走高")[0])
         self.assertIn("處置／注意股", self.tags("聯電列處置股關禁閉，股價下殺近6%")[0])
+        # 資安 alone is a sector (2026-11-03 08:38); an attack is still a risk
+        self.assertEqual(self.tags("今日漲停股｜資安爆發與電子週邊狂飆，富喬、華經、高僑強攻漲停1102")[0], [])
+        self.assertIn("風險", self.tags("聯電遭駭客入侵 公告資安事件")[0])
 
     def test_important_mops_announcements(self):
         self.assertEqual(self.tags("聯電 說明115年10月6日中時電子報報導", "mops"), (["澄清報導"], True))
@@ -267,6 +270,34 @@ class Check(unittest.TestCase):
         self.assertEqual([(i["code"], i["time_taipei"]) for i in auo], [("2409", "2026-11-02 15:30")])
         times = [i["time"] for i in data["items"]]
         self.assertEqual(times, sorted(times, reverse=True))
+
+    def test_a_lookalike_name_is_left_out(self):
+        # Yahoo's feed for 台達電 2308, 2026-11-02 23:30: 6 of its 17 items are about 台達化 1309
+        code, out, err = run(["--symbols", "2308", "--now", "2026-11-02 23:30", "--hours", "48", "--no-google",
+                              "--no-mops", "--no-moves", "--dry-run", "--json"] + self.base)
+        self.assertEqual(code, 0, err)
+        data = json.loads(out)
+        titles = [i["title"] for i in data["items"]]
+        self.assertEqual(len(titles), 11)
+        self.assertFalse([t for t in titles if "台達化" in t])
+        self.assertIn("20萬股東哭哭！光寶科法說後翻黑跌3% 分析師：受「老大哥」台達電拖累", titles)
+        self.assertEqual(data["notes"], ["略過名稱相近的股票的新聞：台達電 2308 的新聞裡有 6 則其實在講台達化 1309。"])
+
+    def test_the_lookalike_note_counts_this_window_once(self):
+        # 2026-11-03 08:38 still counted the 6 skipped the night before: only new ones in the window count
+        args = ["--symbols", "2308", "--no-google", "--no-mops", "--no-moves", "--json"] + self.base
+        code, out, err = run(["--now", "2026-11-02 23:30", "--hours", "2"] + args)
+        self.assertEqual(json.loads(out)["notes"], [], err)          # the 台達化 items are from 18:05 to 18:30
+        run(["--now", "2026-11-02 23:30", "--hours", "48"] + args)    # seen once, without --dry-run
+        code, out, err = run(["--now", "2026-11-03 08:38", "--hours", "16"] + args)
+        self.assertEqual(json.loads(out)["notes"], [], err)
+
+    def test_lookalikes_share_the_first_two_characters(self):
+        universe = news.tw.load_universe(UNIVERSE)
+        sims = news.lookalikes({"2308": {"name": "台達電", "market": "TWSE"}}, universe)
+        self.assertEqual(sims, {"2308": [("1309", "台達化")]})
+        item = {"kind": "headline", "code": "2308", "title": "台達化 台達電 同日公告"}   # names both: kept
+        self.assertEqual(news.drop_lookalikes([item], {"2308": {"name": "台達電"}}, universe), ([item], []))
 
     def test_an_otc_stock_reads_its_two_suffix(self):
         code, out, err = run(["--symbols", "6488.TWO", "--now", "2026-11-02 22:00", "--hours", "720",

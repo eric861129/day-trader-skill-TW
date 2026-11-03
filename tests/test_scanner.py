@@ -382,6 +382,15 @@ class Orb(unittest.TestCase):
         bars = scan.session_bars(s, DAY, DT(2026, 11, 2, 9, 27))
         self.assertEqual(len(bars), 5)                     # 09:00 to 09:20; the 09:26:47 tick is not a bar
 
+    def test_live_yahoo_is_about_20_minutes_behind(self):
+        # 2026-11-03 09:22: the newest point was 09:02:35, so every slot to 09:22 was never there
+        s = bars_series("2026-11-02", [100], extra=[("2026-11-02 09:02:35", 100.5)])
+        self.assertEqual(scan.data_cutoff({"2303.TW": s}, DAY, DT(2026, 11, 2, 9, 22)),
+                         (DT(2026, 11, 2, 9, 2), 20))
+        s = bars_series("2026-11-02", [100, 100.5, 101, 101.5], extra=[("2026-11-02 09:21:10", 102)])
+        cut = DT(2026, 11, 2, 9, 22)
+        self.assertEqual(scan.data_cutoff({"2303.TW": s}, DAY, cut), (cut, None))   # a minute behind is live
+
     def test_stage_one_is_a_necessary_condition(self):
         for cut in (DT(2026, 11, 2, 9, 45), DT(2026, 11, 2, 13, 0)):
             for sym, s in self.data.items():
@@ -659,6 +668,56 @@ class Cli(unittest.TestCase):
         self.assertEqual(sum(1 for c in calls if c.startswith("/v8/")), 10)
         self.assertEqual(sum(1 for c in calls if c.startswith("/v7/")), 12)   # 240 symbols, 20 a request
         self.assertTrue(all("range=1d&interval=5m" in c for c in calls))
+
+    def delayed_orb(self, now, behind=20):
+        """The networked path with Yahoo answering only the points `behind` minutes before now."""
+        spark = json.loads(scan._read_maybe_gz(SPARK5))
+        edge = ts(now) - behind * 60
+        by_sym = {}
+        for r in spark["spark"]["result"]:
+            resp = r["response"][0]
+            keep = [i for i, t in enumerate(resp["timestamp"]) if t <= edge]
+            resp["timestamp"] = [resp["timestamp"][i] for i in keep]
+            q = resp["indicators"]["quote"][0]
+            q["close"] = [q["close"][i] for i in keep]
+            by_sym[r["symbol"]] = r
+
+        charts = json.loads(scan._read_maybe_gz(WALL))
+        for doc in charts.values():
+            res = doc["chart"]["result"][0]
+            keep = [i for i, t in enumerate(res["timestamp"]) if t <= edge]
+            res["timestamp"] = [res["timestamp"][i] for i in keep]
+            q = res["indicators"]["quote"][0]
+            for k in q:
+                q[k] = [q[k][i] for i in keep]
+
+        def get(path):
+            if path.startswith("/v8/"):
+                return json.dumps(charts[path.split("/chart/")[1].split("?")[0]])
+            want = path.split("symbols=")[1].split("&")[0].split(",")
+            return json.dumps({"spark": {"result": [by_sym[s] for s in want if s in by_sym], "error": None}})
+        old_get, old_sleep, real_now = scan.yahoo_get, scan.SLEEP, scan.parse_now
+        scan.yahoo_get, scan.SLEEP = get, (lambda s: None)
+        scan.parse_now = lambda text: real_now(text or now)
+        try:
+            return run(["orb", "--symbols", "2303,2330", "--now", now, "--no-write", "--disposition", "none",
+                        "--max-confirm", "0", "--json"]), run(["orb", "--symbols", "2303,2330", "--now", now,
+                                                                "--no-write", "--disposition", "none"])
+        finally:
+            scan.yahoo_get, scan.SLEEP, scan.parse_now = old_get, old_sleep, real_now
+
+    def test_a_delayed_feed_is_said_not_read_as_no_breakout(self):
+        (code, out, _), (_, text, _) = self.delayed_orb("2026-11-02 09:30")
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(out)["data_delay_minutes"], 20)
+        self.assertIn("Yahoo 的台股盤中資料延遲約 20 分鐘：最新只到 09:10", text)
+        self.assertIn("區間後的第一根 K 棒 09:20 才收完，加上延遲約 09:40 才看得到", text)
+        self.assertNotIn("沒有圖收盤站上", text)
+        # 20 minutes later the range and the 09:15 bar are there: the scan runs as of 09:25
+        (code, out, _), (_, text, _) = self.delayed_orb("2026-11-02 09:45")
+        doc = json.loads(out)
+        self.assertEqual((doc["as_of"], doc["data_delay_minutes"]), ("2026-11-02 09:25 台北", 20))
+        self.assertEqual(doc["counts"]["scanned"], 2)
 
     def test_plain_messages_and_exit_codes(self):
         code, _, err = run(["orb", "--offline", WALL, "--now", "2026-10-31 09:45", "--out", self.wl])

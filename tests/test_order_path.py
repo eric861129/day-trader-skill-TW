@@ -97,7 +97,7 @@ class OrderPath(unittest.TestCase):
         again = read(self.risk)
         self.assertTrue(any(r.startswith("重複") for r in again["results"][0]["reasons"]), again)
         self.assertEqual(again["today"]["loss_at_risk"], 1972.0)
-        self.assertIn("BLOCK", self.broker("show", "2026-11-02 09:25")[1])
+        self.assertIn("DONE：已送出（09:22）", self.broker("show", "2026-11-02 09:25")[1])   # sent, not a fresh block
 
         # flat by 13:20: the sell ticket passes as an exit after the 13:00 entry cutoff
         code, text = run(ticket.main, ["flatten", "--symbol", "2303", "--orders", self.orders,
@@ -107,9 +107,13 @@ class OrderPath(unittest.TestCase):
         sell = read(self.orders)["orders"][0]
         self.assertEqual((sell["side"], sell["qty"], sell["price_type"], sell["tif"], sell["trade"]),
                          ("sell", 1000, "market", "IOC", "day_trade"))
+        with open(self.prices, "w", encoding="utf-8") as fh:   # a fresh quote, as trader-alerts writes it
+            json.dump({"as_of": "2026-11-02T05:20:00Z", "source": "mis", "prices": {"2303": 111.5},
+                       "detail": {"2303": {"time": "2026-11-02T05:20:00Z", "fetched": "2026-11-02T05:20:00Z"}}}, fh)
         code, text = self.risk_check("2026-11-02 13:20")
         self.assertEqual(code, 0, text)
         self.assertEqual(read(self.risk)["results"][0]["kind"], "exit")
+        self.assertNotIn("None", text)        # 2026-11-03 10:48 said "高於計畫進場價 None" for a flatten
         code, text = self.broker("approve", "2026-11-02 13:20", "--index", "1", "--reply", "yes")
         self.assertEqual(code, 0, text)
         code, text = self.broker("result", "2026-11-02 13:21", "--index", "1", "--status", "placed",

@@ -553,8 +553,9 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None, now=
                         ref = float(tw.to_tick(ref, code, "up"))
                     except (ValueError, ArithmeticError):
                         pass
-                    info.append("%s 最新價 %s 高於計畫進場價 %s：風險從 %s 算"
-                                % (code, _p(ref, code), _p(plan_entry, code), _p(ref, code)))
+                    if plan_entry:      # an exit from flatten has no plan entry (2026-11-03 10:48 printed None)
+                        info.append("%s 最新價 %s 高於計畫進場價 %s：風險從 %s 算"
+                                    % (code, _p(ref, code), _p(plan_entry, code), _p(ref, code)))
             elif code in prices:
                 ref, ref_from = prices[code], "stale price"
         if plan_entry and live is None and code in prices and price_times is not None and ptype == "market":

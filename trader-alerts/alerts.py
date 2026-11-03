@@ -326,22 +326,47 @@ def _limits(code, prev_close):
 
 
 def mis_quotes(payload):
-    """A MIS getStockInfo answer -> {code: quote}. A code without a last trade is left out."""
+    """A MIS getStockInfo answer -> {code: quote}.
+
+    Before a code's first trade of the day (08:30 to 09:00, or a stock nobody has traded yet) MIS
+    has no last trade but already has the reference price and today's limits: the quote is the
+    reference price, marked no_trade, with the pre-open trial match (試撮) when MIS shows one.
+    Yahoo would answer with yesterday's last trade and yesterday's limits (2026-11-03 08:39:
+    聯電 122.5／100.5 instead of 121.0／99.0).
+
+    In the session MIS often leaves out the last trade of a stock that has traded (a snapshot
+    without a trade). Yahoo is about 20 minutes behind for Taiwan (2026-11-03 09:41: Yahoo 1,605 at
+    09:21, MIS bid 1,655 ask 1,660 for 3665), so the quote is the best bid, the price a long can
+    sell at (the ask when nobody bids), marked book. A code with neither is left out, for Yahoo."""
     out = {}
     for code, m in tw.parse_mis(payload).items():
-        if m.get("last") is None:
-            continue
+        no_trade = m.get("last") is None and not m.get("volume_lots") and m.get("prev_close") is not None
+        book = None
+        if m.get("last") is None and not no_trade:
+            book = "bid" if m.get("bid") else "ask" if m.get("ask") else None
+            if book is None:
+                continue
         when = None
         try:
             local = datetime.datetime.strptime("%s %s" % (m.get("date"), m.get("time")), "%Y%m%d %H:%M:%S")
             when = tw.taipei_to_utc(local)
         except (TypeError, ValueError):
             pass
-        out[code] = {"symbol": code, "market": m["market"], "name": m.get("name") or None,
-                     "price": m["last"], "prev_close": m.get("prev_close"), "limit_up": m.get("limit_up"),
-                     "limit_down": m.get("limit_down"), "open": m.get("open"), "high": m.get("high"),
-                     "low": m.get("low"), "time": utc_z(when) if when else None,
-                     "when": "%s 成交" % m.get("time") if m.get("time") else "", "source": "mis"}
+        price = m[book] if book else m["prev_close"] if no_trade else m["last"]
+        q = {"symbol": code, "market": m["market"], "name": m.get("name") or None,
+             "price": price, "prev_close": m.get("prev_close"),
+             "limit_up": m.get("limit_up"), "limit_down": m.get("limit_down"), "open": m.get("open"),
+             "high": m.get("high"), "low": m.get("low"), "time": utc_z(when) if when else None,
+             "when": "%s 成交" % m.get("time") if m.get("time") else "", "source": "mis"}
+        if no_trade:
+            q["no_trade"] = True
+            q["when"] = "%s 的報價" % m.get("time") if m.get("time") else ""
+            if m.get("trial"):
+                q["trial"] = m["trial"]
+        if book:
+            q.update({"book": book, "bid": m.get("bid"), "ask": m.get("ask")})
+            q["when"] = "%s %s（這一刻沒有成交價）" % (m.get("time") or "", "委買價" if book == "bid" else "委賣價")
+        out[code] = q
     return out
 
 
@@ -367,9 +392,13 @@ def chart_quote(doc, now_utc=None):
     quote["limit_up"], quote["limit_down"] = _limits(code, prev)
     live_ts = meta.get("regularMarketTime")
     if meta.get("regularMarketPrice") is not None and live_ts and (now_ts is None or live_ts <= now_ts):
+        traded = tw.ts_to_taipei(live_ts)
+        today = tw.to_taipei(now_utc or tw.utc_now()).date()
+        # before today's first trade Yahoo's last trade is an earlier day's: say which day
+        fmt = "%H:%M:%S" if traded.date() == today else "%m-%d %H:%M:%S"
         quote.update({"price": float(tw.to_tick(meta["regularMarketPrice"], code)),
-                      "time": utc_z(tw.taipei_to_utc(tw.ts_to_taipei(live_ts))),
-                      "when": "%s 成交" % tw.ts_to_taipei(live_ts).strftime("%H:%M:%S"),
+                      "time": utc_z(tw.taipei_to_utc(traded)),
+                      "when": "%s 成交" % traded.strftime(fmt),
                       "high": meta.get("regularMarketDayHigh"), "low": meta.get("regularMarketDayLow")})
         return code, quote
     step = STEP_SECONDS.get(str(meta.get("dataGranularity") or "1m"), 60)
@@ -530,6 +559,10 @@ def write_prices(path, quotes, now_utc):
         detail[code] = {"time": q.get("time"), "fetched": stamp, "name": q.get("name"), "market": q.get("market"),
                         "prev_close": q.get("prev_close"), "limit_up": q.get("limit_up"),
                         "limit_down": q.get("limit_down"), "source": q.get("source")}
+        if q.get("no_trade"):
+            detail[code].update({"no_trade": True, "trial": q.get("trial")})
+        if q.get("book"):
+            detail[code].update({"book": q["book"], "bid": q.get("bid"), "ask": q.get("ask")})
     sources = sorted({q.get("source") for q in quotes.values() if q.get("source")})
     doc = {"as_of": stamp, "source": "+".join(sources) or old.get("source", "mis"), "prices": prices,
            "detail": detail}
@@ -539,7 +572,12 @@ def write_prices(path, quotes, now_utc):
 
 def quote_line(code, q):
     chg = ""
-    if q.get("prev_close"):
+    if q.get("no_trade"):
+        chg = "  昨收，今天還沒有成交"
+        if q.get("trial") and q.get("prev_close"):
+            chg += "  試撮 %s（%+.2f%%）" % (tw.fmt_price(q["trial"], code),
+                                           100.0 * (q["trial"] / float(q["prev_close"]) - 1))
+    elif q.get("prev_close"):
         chg = "  %+.2f%%（昨收 %s）" % (100.0 * (q["price"] / float(q["prev_close"]) - 1),
                                        tw.fmt_price(q["prev_close"], code))
     lim = ""
@@ -656,6 +694,7 @@ def evaluate(rules, quotes, status, state, now_utc, known=None):
         p = q["price"]
         name = label(code, q, known, r)
         when = ("（%s）" % q["when"]) if q.get("when") else ""
+        said = "昨收" if q.get("no_trade") else now_word     # no trade yet today: the price is the reference
         if typ in ("above", "below"):
             hit = p >= r["price"] if typ == "above" else p <= r["price"]
             if hit and rid not in rung:
@@ -663,7 +702,7 @@ def evaluate(rules, quotes, status, state, now_utc, known=None):
                 what = {"stop": "停損", "target": "停利"}.get(r["type"], "警示價")
                 note = ("（%s）" % r["note"]) if r.get("note") else ""
                 rings.append({"id": rid, "symbol": code, "type": r["type"],
-                              "message": "%s %s %s%s，%s你的%s %s%s。" % (name, now_word, _p(p, code), when, word, what,
+                              "message": "%s %s %s%s，%s你的%s %s%s。" % (name, said, _p(p, code), when, word, what,
                                                                          _p(r["price"], code), note)})
                 rung[rid] = stamp
             elif not hit and rid in rung and r.get("rearm"):
@@ -678,7 +717,7 @@ def evaluate(rules, quotes, status, state, now_utc, known=None):
             if hit and not _rang_today(rung.get(rid), today):
                 rings.append({"id": rid, "symbol": code, "type": r["type"],
                               "message": "%s %s %.2f%%，%s %s%s（%s %s）。" % (
-                                  name, "漲" if move > 0 else "跌", abs(move), now_word, _p(p, code), when,
+                                  name, "漲" if move > 0 else "跌", abs(move), said, _p(p, code), when,
                                   "參考價" if r.get("ref") else "昨收", _p(ref, code))})
                 rung[rid] = stamp
         elif typ in ("limit_up", "limit_down"):

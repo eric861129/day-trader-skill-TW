@@ -635,9 +635,24 @@ def _num(x):
     return v if v > 0 else None
 
 
+def _best(levels):
+    """'29.7500_29.7000_..._' -> the first positive price. A 0.0000 level is market orders (a stock
+    locked at a limit shows them first), '-' is an empty side: None."""
+    for p in str(levels or "").split("_"):
+        v = _num(p)
+        if v:
+            return v
+    return None
+
+
 def parse_mis(payload):
     """TWSE MIS getStockInfo JSON -> {code: {name, market, last, prev_close, limit_up, limit_down,
-    open, high, low, volume_lots, date, time}}. A field the quote does not carry is None."""
+    open, high, low, volume_lots, bid, ask, trial, trade_price, trade_time, date, time}}. A field
+    the quote does not carry is None. trial is the pre-open trial match price (試撮, pz) that MIS
+    shows from 08:30 until the open. In the session last is often None for a stock that traded (z
+    is "-" in a snapshot without a trade: 3665 at 09:39 to 09:41 on 2026-11-03); bid and ask are
+    the best prices then, and trade_price / trade_time are the last trade all the same (the
+    "trade" object: 3665 traded 1665 at 09:38:32). open, high and low are the day's so far."""
     if isinstance(payload, (str, bytes)):
         payload = json.loads(payload)
     out = {}
@@ -646,11 +661,17 @@ def parse_mis(payload):
         if not code:
             continue
         vol = _num(m.get("v"))
+        tr = m.get("trade") if isinstance(m.get("trade"), dict) else {}
+        trade_price, trade_time = _num(tr.get("z")), tr.get("t") or None
+        if trade_price is None and _num(m.get("z")):
+            trade_price, trade_time = _num(m.get("z")), m.get("t")     # a snapshot that is a trade
         out[code] = {"name": m.get("n", ""), "market": "TPEx" if m.get("ex") == "otc" else "TWSE",
                      "last": _num(m.get("z")), "prev_close": _num(m.get("y")),
                      "limit_up": _num(m.get("u")), "limit_down": _num(m.get("w")),
                      "open": _num(m.get("o")), "high": _num(m.get("h")), "low": _num(m.get("l")),
-                     "volume_lots": int(vol) if vol else 0, "date": m.get("d"), "time": m.get("t")}
+                     "volume_lots": int(vol) if vol else 0, "bid": _best(m.get("b")), "ask": _best(m.get("a")),
+                     "trial": _num(m.get("pz")), "trade_price": trade_price, "trade_time": trade_time,
+                     "date": m.get("d"), "time": m.get("t")}
     return out
 
 

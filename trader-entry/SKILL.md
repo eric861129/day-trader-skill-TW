@@ -28,7 +28,26 @@ python3 "${CLAUDE_SKILL_DIR}/entry.py" check 2303 --setup level --level 111.5
 python3 "${CLAUDE_SKILL_DIR}/entry.py" check 6488.TWO --interval 1m --min-volume-x 1.5
 python3 "${CLAUDE_SKILL_DIR}/entry.py" watch 2303 --until 13:00    # 每收一根印一行，觸發就停
 python3 "${CLAUDE_SKILL_DIR}/entry.py" watchlist                   # trader/watchlist.json 裡每一檔
+python3 "${CLAUDE_SKILL_DIR}/entry.py" watch 2303 --source mis --every 10 --until 13:00   # MIS 快照，不等 Yahoo
 ```
+
+## 盤中不等 Yahoo：`--source mis`
+
+Yahoo 的台股盤中 K 棒延遲約 20 分鐘：09:20 收的那根要 09:40 左右才看得到（2026-11-03 實測）。
+`--source mis` 改讀證交所 MIS 的盤中快照（只差幾秒），09:15 就知道開盤區間，09:20 就知道 09:15 那根的收盤。
+
+- **開盤區間** 是 09:15 剛過那張快照裡的當日最高和最低。快照裡最後一筆成交在 09:15 之前，
+  或更早的快照已經是同樣的高低點，區間就是準的；不然最多多含一分鐘內的成交，輸出會說明。
+  09:16 之後才第一次抓，最高最低可能含了區間之後的成交，就不能用，要改看 Yahoo（約 09:40 之後）。
+- **收盤價** 是 K 棒結束前的最後一筆成交。快照會帶最後一筆成交的時間：結束後的快照顯示最後一筆
+  還在結束前，收盤就是準的；成交很熱絡時，改用結束前一分鐘內的最後一筆，輸出會說「可能差一檔」。
+  沒有快照看到收盤的 K 棒會列出來：那幾根的突破看不到。
+- **要每根都看到，就讓 `watch --source mis --every 10` 在 09:15 之前開始跑**（`--every` 至少 5 秒，
+  MIS 是證交所的公開網站，不要問太快）。只在固定時間跑 `check --source mis`，成交熱絡的股票常常
+  看不到收盤。
+- 每次抓到的快照存在 `trader/state/mis-日期.json`。`--now` 用這份紀錄重播當天，`--offline` 可以指定別的紀錄檔。
+- MIS 沒有每根 K 棒的成交量，所以 `--source mis` 不能加 `--min-volume-x`。
+- 寫入的 `trader/entry.json` 標 `"source": "mis"`，/trader-exit 照常讀。
 
 其他參數：`--or-minutes N`（預設 15）、`--json`、`--offline FILE`（存下來的 Yahoo
 線圖 JSON，`.json` 或 `.json.gz`，或放 `<代號>.json` 的資料夾）、`--now "2026-11-02 09:20"`
@@ -44,7 +63,9 @@ python3 "${CLAUDE_SKILL_DIR}/entry.py" watchlist                   # trader/watc
 | `trader/watchlist.json` | 掃描器命中的股票（`hits[].symbol`、`market`、`name`），給 `watchlist` 用 |
 | `trader/universe.txt` | 代號對應的市場和名稱（trader-scanner 寫的），選用 |
 | `trader/config.json` | `no_entries_before`（09:15）和 `no_entries_after`（13:00），台北時間；`extra_closed` 放颱風假。選用 |
-| Yahoo 線圖 API | 當天的 K 棒，`range=1d&interval=5m`（或 `1m`）：免費、非官方、可能延遲 |
+| Yahoo 線圖 API | 當天的 K 棒，`range=1d&interval=5m`（或 `1m`）：免費、非官方、盤中延遲約 20 分鐘 |
+| 證交所 MIS（`--source mis`） | 盤中快照（只差幾秒）：當日最高最低、最後一筆成交和時間、委買委賣 |
+| `trader/state/mis-日期.json` | `--source mis` 每次抓到的快照，重播用 |
 | `trader/entry.json` | `check --write` 或 `watch` 觸發時寫入：代號、市場、名稱、型態、狀態、時間、bar、價格、水準、開盤區間 |
 
 ## 判斷規則
@@ -70,7 +91,7 @@ python3 "${CLAUDE_SKILL_DIR}/entry.py" watchlist                   # trader/watc
 1. 跟使用者確認代號，或在 /trader-scanner 之後跑 `entry.py watchlist`。先用 /trader-news 看過這檔。
 2. 跑 `entry.py check 代號`，用一句話告訴使用者狀態：等待中還差多少、幾點觸發在什麼價格、或已經過期。
 3. 要等它觸發，Claude 可以在背景跑 `entry.py watch 代號 --until 13:00`，或用 `/loop` 每 5 分鐘跑一次
-   `entry.py check 代號 --write`。`watch` 在每根 K 棒收完後醒來，每根印一行，觸發時結束、回傳 0
+   `entry.py check 代號 --write`。盤中不想等 Yahoo 的 20 分鐘，就在 09:15 之前開始 `entry.py watch 代號 --source mis --every 10 --until 13:00`。`watch` 在每根 K 棒收完後醒來，每根印一行，觸發時結束、回傳 0
    （寫入 `trader/entry.json`），過期則回傳 1。盯盤的時候電腦不要睡著：筆電睡著它就暫停，醒來才補上，已經晚了。
 4. 觸發時說出時間和價格，並說明什麼單都沒有下。如果觸發已經是一根 K 棒以前的事，也要說：晚進場是另一筆交易。
 5. 交給 /trader-exit，在買進「之前」先設好停損和停利。

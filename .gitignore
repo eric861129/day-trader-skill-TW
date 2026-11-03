@@ -4,3 +4,6 @@
 
 __pycache__/
 *.pyc
+
+# Claude Code's local settings and scheduler state
+.claude/

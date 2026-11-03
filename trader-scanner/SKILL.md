@@ -24,7 +24,7 @@ argument-hint: "[universe | daily | orb] [--at HH:MM]"
 python3 "${CLAUDE_SKILL_DIR}/scan.py" universe                        # -> trader/universe.txt，並更新休市日
 python3 "${CLAUDE_SKILL_DIR}/scan.py" daily                           # 開盤前 -> trader/watchlist.json
 python3 "${CLAUDE_SKILL_DIR}/scan.py" daily --symbols 2330,2303,6488  # 或 --watchlist 檔案、--limit 200、--kind ETF
-python3 "${CLAUDE_SKILL_DIR}/scan.py" orb                             # 09:20 之後 -> trader/watchlist.json
+python3 "${CLAUDE_SKILL_DIR}/scan.py" orb                             # 09:40 之後 -> trader/watchlist.json
 python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --at 09:45                  # 時間切在台北時間 09:45
 python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --watchlist trader/watchlist.json --json
 ```
@@ -112,6 +112,12 @@ K 棒丟掉，不在 5 分鐘格線上的 K 棒（盤中的即時跳動）丟掉
 
 - Yahoo 的 chart 和 spark 免費、非官方、可能延遲。K 棒是 5 分 K，一根一根看，不是逐筆。先試
   query2，遇到 429 或 5xx 換 query1，429 等 5 秒重試一次。
+- **台股盤中的 Yahoo 資料延遲約 20 分鐘**：2026-11-03 09:22 最新的一點是 09:02:35。`orb` 會看資料
+  實際到幾點，只用那之前收完的 K 棒，並且說延遲幾分鐘。15 分鐘開盤區間之後的第一根 K 棒 09:20 收完，
+  大約 09:40 才看得到；09:40 之前跑會說「這不是沒有突破」，不會說沒有圖突破。突破的時間是 K 棒收完的
+  時間，離現在大約 20 分鐘，現價要看 MIS（`/trader-alerts` 的 `quote`）。要在 09:20 就知道突破，
+  不要等掃描：對 `daily` 的觀察清單跑 `/trader-entry` 的 `entry.py watchlist --source mis`（證交所 MIS
+  盤中快照，只差幾秒，一次問完整份清單），或對一檔跑 `entry.py watch 代號 --source mis`。
 - Yahoo 的 spark 會省略剛好落在前後兩點連線上的收盤價（例如 108.0、108.5、109.0 的中間那個，
   或一段一樣的收盤價）。台股升降單位粗，這很常見：2026-11-02 那 240 檔在 09:00 到 13:20 之間被省略
   了 1,885 根 5 分 K，3 個月的日 K 有 119 檔少了 1 到 7 天。工具會按時間內插補回，對齊升降單位，
@@ -128,8 +134,8 @@ K 棒丟掉，不在 5 分鐘格線上的 K 棒（盤中的即時跳動）丟掉
 
 1. 大約一週一次：`scan.py universe`。
 2. 開盤前：`scan.py daily`。跟使用者說數量（抓到、通過流動性、掃描、符合），每種型態挑前幾檔講。
-3. 09:20 之後（09:45 是常用的時間點）：`scan.py orb`。說有幾張可用的圖突破了開盤區間、什麼時候
-   突破，也說越晚突破的離現在的價格越近。說出哪些處置股被排除。
+3. 09:40 之後（09:45 是常用的時間點；Yahoo 延遲約 20 分鐘）：`scan.py orb`。說有幾張可用的圖突破了
+   開盤區間、什麼時候突破，也說越晚突破的離現在的價格越近。說出資料延遲幾分鐘、哪些處置股被排除。
 4. 使用者自己挑一張圖。交下去：`/trader-news 代號`（什麼消息在推它），然後 `/trader-entry 代號`
    （一根一根 K 棒看進場）。不要替使用者挑。
 

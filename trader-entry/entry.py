@@ -317,6 +317,82 @@ def get_chart(code, interval, day=None, offline=None, today=None, market=None, n
     return ch
 
 
+# ---------------------------------------------------------------- MIS (real time)
+
+MIS_BATCH = 50     # channels per MIS request
+
+
+def mis_get(pairs):
+    """[(code, market or None), ...] -> tw.parse_mis rows, MIS_BATCH channels a request.
+    A code without a market asks both."""
+    chans = []
+    for code, market in pairs:
+        chans += [tw.mis_channel(code, m) for m in ([market] if market else ["TWSE", "TPEx"])]
+    out = {}
+    for i in range(0, len(chans), MIS_BATCH):
+        if i:
+            _sleep(PAUSE)
+        try:
+            out.update(tw.parse_mis(_open_url(tw.MIS_URL % "|".join(chans[i:i + MIS_BATCH]))))
+        except (urllib.error.URLError, OSError) as e:
+            raise EntryError("讀不到證交所 MIS：%s" % (getattr(e, "reason", None) or e))
+        except ValueError:
+            raise EntryError("證交所 MIS 回傳了看不懂的內容")
+    return out
+
+
+def mis_log_path(config_path, day):
+    return os.path.join(trader_dir(config_path), "state", "mis-%s.json" % day.isoformat())
+
+
+def read_mis_log(path, required=False):
+    if not os.path.exists(path):
+        if required:
+            raise EntryError("沒有 MIS 快照紀錄 %s" % path)
+        return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except ValueError as e:
+        raise EntryError("%s 不是有效的 JSON：%s" % (path, e))
+
+
+def log_mis(log, quotes, day):
+    """Add one MIS answer ({code: parse_mis row}) to the day's log: per stock its name, market,
+    limits and every snapshot (time, the day's high and low so far, the last trade and its time,
+    the best bid and ask, the day's volume in lots). A quote of another day is left out. A
+    snapshot with no new trade (same high, low, trade, trade time and volume) moves the last
+    one's time forward instead: the later time proves the same quiet stretch, and a full day
+    of a thin stock stays small."""
+    if not log or log.get("date") != day.isoformat():
+        log = {"date": day.isoformat(), "source": "mis", "stocks": {}}
+    for code, q in quotes.items():
+        if not q.get("time") or (q.get("date") and q["date"] != day.strftime("%Y%m%d")):
+            continue
+        st = log["stocks"].setdefault(code, {"snaps": []})
+        for k in ("name", "market", "prev_close", "limit_up", "limit_down"):
+            if q.get(k) is not None:
+                st[k] = q[k]
+        snap = {"at": q["time"], "high": q.get("high"), "low": q.get("low"), "open": q.get("open"),
+                "trade": q.get("trade_price"), "trade_at": q.get("trade_time"),
+                "bid": q.get("bid"), "ask": q.get("ask"), "volume_lots": q.get("volume_lots") or 0}
+        same = ("high", "low", "trade", "trade_at", "volume_lots")
+        if st["snaps"] and (st["snaps"][-1]["at"] == snap["at"]
+                            or all(st["snaps"][-1].get(k) == snap[k] for k in same)):
+            st["snaps"][-1] = snap
+        else:
+            st["snaps"].append(snap)
+    return log
+
+
+def mis_snapshot(pairs, log_path, day):
+    """Fetch MIS once, add it to the day's log on disk. -> the log."""
+    quotes = mis_get(pairs)
+    log = log_mis(read_mis_log(log_path), quotes, day)
+    write_json(log_path, log)
+    return log
+
+
 # ---------------------------------------------------------------- the rule
 
 def read_config(path):
@@ -349,11 +425,8 @@ def r2(x):
     return None if x is None else round(float(x), 2) + 0.0   # + 0.0 turns -0.0 into 0.0
 
 
-def evaluate(chart, now_utc, setup="orb", or_minutes=15, interval="5m", level=None,
-             min_volume_x=None, cfg=None, cal=None):
-    """Pure function: the setup's status at now_utc from one session's bars."""
-    cfg = cfg or dict(DEFAULTS)
-    cal = cal or tw.Calendar()
+def check_args(setup, or_minutes, interval, level):
+    """-> the bar length in seconds, or EntryError."""
     if interval not in INTERVALS:
         raise EntryError("--interval 只能是 5m 或 1m")
     step = INTERVALS[interval]
@@ -363,6 +436,15 @@ def evaluate(chart, now_utc, setup="orb", or_minutes=15, interval="5m", level=No
         raise EntryError("--setup 只能是 orb 或 level")
     if setup == "level" and level is None:
         raise EntryError("--setup level 需要 --level 價格（例如 20 日新高）")
+    return step
+
+
+def evaluate(chart, now_utc, setup="orb", or_minutes=15, interval="5m", level=None,
+             min_volume_x=None, cfg=None, cal=None):
+    """Pure function: the setup's status at now_utc from one session's bars."""
+    cfg = cfg or dict(DEFAULTS)
+    cal = cal or tw.Calendar()
+    step = check_args(setup, or_minutes, interval, level)
     code = chart["symbol"]
     n_or = or_minutes * 60 // step
     local = tw.to_taipei(now_utc)
@@ -507,6 +589,235 @@ def evaluate(chart, now_utc, setup="orb", or_minutes=15, interval="5m", level=No
     return res
 
 
+MIS_NEAR = 60       # seconds: a trade this close before a bar ends stands in for its close
+MIS_MIN_EVERY = 5   # seconds: the shortest poll of the public MIS site
+
+
+def _at(day, text):
+    """'09:15:03' on day -> naive Taipei datetime, or None."""
+    try:
+        h, m, s = (int(x) for x in str(text).split(":"))
+        return datetime.datetime.combine(day, datetime.time(h, m, s))
+    except (TypeError, ValueError):
+        return None
+
+
+def mis_closes(snaps, day, step):
+    """The bar closes the snapshots prove. A snapshot says the last trade was P at T and nothing
+    traded from T to the snapshot, so P closed T's bar when the snapshot came after that bar
+    ended (exact), and the bars that ended in between had no trade (quiet). A snapshot within
+    MIS_NEAR seconds of the end of its own bar stands in for that close (not exact).
+    -> ({slot: {"c", "exact", "seen"}}, {quiet slots})"""
+    open_dt = datetime.datetime.combine(day, tw.OPEN)
+    auction = datetime.datetime.combine(day, tw.CLOSING_AUCTION)
+    end_of = lambda k: open_dt + datetime.timedelta(seconds=(k + 1) * step)
+    closes, quiet = {}, set()
+    for s in snaps:
+        tt = _at(day, s.get("trade_at"))
+        if not s.get("trade") or not s.get("volume_lots") or tt is None:
+            continue                       # no trade today yet: the trade is yesterday's
+        if tt < open_dt or tt >= auction or tt > s["_at"]:
+            continue
+        k = int((tt - open_dt).total_seconds()) // step
+        if s["_at"] >= end_of(k):
+            closes[k] = {"c": s["trade"], "exact": True, "seen": s["at"], "trade_at": s["trade_at"]}
+            j = k + 1
+            while end_of(j) <= min(s["_at"], auction):
+                quiet.add(j)
+                j += 1
+        elif (end_of(k) - s["_at"]).total_seconds() <= MIS_NEAR and not closes.get(k, {}).get("exact"):
+            closes[k] = {"c": s["trade"], "exact": False, "seen": s["at"], "trade_at": s["trade_at"]}
+    return closes, quiet
+
+
+def slot_spans(slots, open_dt, step):
+    """[3, 4, 5, 9] -> '09:15 到 09:25 這 3 根、09:45 這 1 根' (bar start times)."""
+    runs = []
+    for k in sorted(slots):
+        if runs and k == runs[-1][1] + 1:
+            runs[-1][1] = k
+        else:
+            runs.append([k, k])
+    at = lambda k: hm(open_dt + datetime.timedelta(seconds=k * step))
+    return "、".join(("%s 這 1 根" % at(a)) if a == b else ("%s 到 %s 這 %d 根" % (at(a), at(b), b - a + 1))
+                    for a, b in runs)
+
+
+def mis_range(snaps, day, or_minutes, n_or):
+    """The day's high and low when the opening range ended, from the first snapshot after it.
+    Exact when the last trade then was before the end, or an earlier snapshot already had the
+    same high and low; otherwise it may hold a few seconds more, up to MIS_NEAR.
+    -> (opening_range, None) or (None, why not)."""
+    open_dt = datetime.datetime.combine(day, tw.OPEN)
+    or_end = open_dt + datetime.timedelta(minutes=or_minutes)
+    seen = [s for s in snaps if s.get("high") and s.get("low")]
+    after = [s for s in seen if s["_at"] >= or_end]
+    if not after:
+        return None, "還沒有 %s 之後的 MIS 快照" % hm(or_end)
+    s = after[0]
+    before = [p for p in seen if p["_at"] < or_end]
+    tt = _at(day, s.get("trade_at"))
+    exact = bool((before and (before[-1]["high"], before[-1]["low"]) == (s["high"], s["low"]))
+                 or (tt is not None and tt < or_end and s.get("volume_lots")))
+    late = (s["_at"] - or_end).total_seconds()
+    if not exact and late > MIS_NEAR:
+        return None, ("MIS 在 %s 之後的第一張快照是 %s，那時的最高最低可能已經含區間之後的成交，不能當開盤區間。"
+                      "下個交易日在 %s 前開始 entry.py watch --source mis，或改看 Yahoo（不加 --source，約 %s 之後）"
+                      % (hm(or_end), s["at"], hm(or_end), hm(or_end + datetime.timedelta(minutes=25))))
+    return {"high": s["high"], "low": s["low"], "minutes": or_minutes, "bars": n_or, "of": n_or,
+            "complete": True, "avg_volume": None, "as_of": s["at"], "exact": exact}, None
+
+
+def evaluate_mis(stock, code, now_utc, setup="orb", or_minutes=15, interval="5m", level=None,
+                 min_volume_x=None, cfg=None, cal=None, live=False):
+    """evaluate() from one stock's MIS snapshots (its entry in the day's log), with the same
+    result shape and "source": "mis". The opening range is MIS's high and low of the day just
+    after it ended; a bar's close is the last trade before it ended (see mis_closes). A bar
+    whose close no snapshot shows is listed in "unknown_bars": a breakout there is not seen.
+    live: the newest snapshot is now, even if this computer's clock is a little behind."""
+    cfg = cfg or dict(DEFAULTS)
+    cal = cal or tw.Calendar()
+    step = check_args(setup, or_minutes, interval, level)
+    if min_volume_x:
+        raise EntryError("--source mis 沒有每根 K 棒的成交量，不能用 --min-volume-x")
+    n_or = or_minutes * 60 // step
+    local = tw.to_taipei(now_utc)
+    day = local.date()
+    snaps = sorted((dict(s, _at=_at(day, s.get("at"))) for s in (stock or {}).get("snaps") or []
+                    if _at(day, s.get("at"))), key=lambda s: s["_at"])
+    if live and snaps and snaps[-1]["_at"] > local:
+        local = snaps[-1]["_at"]
+    snaps = [s for s in snaps if s["_at"] <= local]
+    res = {"symbol": code, "market": (stock or {}).get("market"), "name": (stock or {}).get("name"),
+           "setup": setup, "side": "buy", "date": day.isoformat(), "interval": interval,
+           "or_minutes": or_minutes, "now": local.strftime("%Y-%m-%d %H:%M:%S"), "status": "waiting",
+           "phase": "", "reason": "", "opening_range": None, "level": None, "trigger": None,
+           "last": None, "forming": None, "min_volume_x": None, "source": "mis",
+           "prev_close": (stock or {}).get("prev_close"), "limit_up": None, "limit_down": None,
+           "calendar_known": cal.known(day.year), "calendar_note": cal.unknown_note(day), "_bars": [],
+           "data_time": "%s %s" % (day.isoformat(), snaps[-1]["at"]) if snaps else None, "unknown_bars": []}
+    if res["prev_close"]:
+        up, down = tw.price_limits(res["prev_close"], code)
+        res["limit_up"], res["limit_down"] = float(up), float(down)
+    why = cal.closed(day)
+    if why:
+        res.update(status="no-data", phase="closed", reason="今天休市（%s）" % why, next_open=next_open(cal, day))
+        return res
+    open_dt = datetime.datetime.combine(day, tw.OPEN)
+    auction_dt = datetime.datetime.combine(day, tw.CLOSING_AUCTION)
+    close_dt = datetime.datetime.combine(day, tw.CLOSE)
+    before = datetime.datetime.combine(day, parse_hhmm(cfg["no_entries_before"], "no_entries_before"))
+    cutoff = datetime.datetime.combine(day, parse_hhmm(cfg["no_entries_after"], "no_entries_after"))
+    or_end = open_dt + datetime.timedelta(minutes=or_minutes)
+    res.update(opens=hm(tw.OPEN), closes=hm(tw.CLOSE), no_entries_before=hm(before), no_entries_after=hm(cutoff))
+    if local < open_dt:
+        res.update(phase="pre-open", reason="%s 開盤%s" % (
+            hm(tw.OPEN), "，%d 分鐘開盤區間在 %s 定案" % (or_minutes, hm(or_end)) if setup == "orb" else ""))
+        return res
+    if not snaps:
+        res.update(status="no-data", phase="open", reason="還沒有 %s 的 MIS 快照" % day.isoformat())
+        return res
+    code_px = lambda p: tw.fmt_price(p, code)
+    newest = snaps[-1]
+    if newest.get("trade") and newest.get("volume_lots") and _at(day, newest.get("trade_at")):
+        res["mis_now"] = {"price": snap(newest["trade"], code), "trade_at": newest["trade_at"], "at": newest["at"],
+                          "bid": newest.get("bid"), "ask": newest.get("ask")}
+        k = int((min(local, auction_dt) - open_dt).total_seconds()) // step
+        bar_start = open_dt + datetime.timedelta(seconds=k * step)
+        if local < auction_dt:
+            res["forming"] = {"bar_start": hm(bar_start), "closes": hm(bar_start + datetime.timedelta(seconds=step)),
+                              "price": res["mis_now"]["price"]}
+    if setup == "orb":
+        if local < or_end:
+            hi, lo = newest.get("high"), newest.get("low")
+            if hi and lo:
+                res["opening_range"] = {"high": hi, "low": lo, "minutes": or_minutes, "bars": 0, "of": n_or,
+                                        "complete": False, "avg_volume": None, "as_of": newest["at"], "exact": True}
+            res.update(phase="forming", reason="開盤區間在 %s 定案" % hm(or_end))
+            return res
+        orr, why_not = mis_range(snaps, day, or_minutes, n_or)
+        if not orr:
+            res.update(status="no-data", phase="open", reason=why_not)
+            res["final"] = any(s["_at"] >= or_end for s in snaps)     # too late today: watching will not fix it
+            return res
+        res["opening_range"] = orr
+        lvl = orr["high"]
+    else:
+        lvl = float(level)
+    res["level"] = r2(lvl)
+
+    first_slot = n_or if setup == "orb" else 0
+    closes, quiet = mis_closes(snaps, day, step)
+    bars = []
+    for k in sorted(closes):
+        et = open_dt + datetime.timedelta(seconds=k * step)
+        end = et + datetime.timedelta(seconds=step)
+        if k < first_slot or end > local:
+            continue
+        bars.append(dict(closes[k], c=snap(closes[k]["c"], code), slot=k, et=et, end=end, v=0))
+    seen_until = min(newest["_at"], auction_dt, cutoff)
+    unknown, k = [], first_slot
+    while open_dt + datetime.timedelta(seconds=(k + 1) * step) <= seen_until:
+        if k not in closes and k not in quiet:
+            unknown.append(k)
+        k += 1
+    res["unknown_bars"] = [hm(open_dt + datetime.timedelta(seconds=j * step)) for j in unknown]
+    res["_bars"] = bars
+    res["bars_closed"] = len(bars)
+    trig = None
+    for b in bars:
+        if before <= b["end"] <= cutoff and b["c"] > lvl:
+            trig = b
+            break
+    last = bars[-1] if bars else None
+    if last:
+        res["last"] = {"bar_start": hm(last["et"]), "close": last["c"], "vs_level_pct": r2(100.0 * (last["c"] / lvl - 1))}
+    what = ("開盤區間高點 %s" % code_px(lvl)) if setup == "orb" else ("水準 %s" % code_px(lvl))
+    missed = [j for j in unknown if trig is None or j < trig["slot"]]
+    miss_note = ("%s的 K 棒收盤沒有快照看到，那裡的突破看不到" % slot_spans(missed, open_dt, step)) if missed else ""
+    if trig:
+        res.update(status="triggered", phase="open" if local < close_dt else "after-close",
+                   reason="%s K 棒收在%s之上" % (hm(trig["et"]), "開盤區間高點" if setup == "orb" else "水準"))
+        res["trigger"] = {"time": hm(trig["end"]), "bar_start": hm(trig["et"]), "bar_index": trig["slot"],
+                          "price": trig["c"], "volume": None, "volume_x": None,
+                          "pct_over": r2(100.0 * (trig["c"] / lvl - 1)),
+                          "at_limit_up": bool(res["limit_up"] and trig["c"] >= res["limit_up"]),
+                          "exact": trig["exact"], "seen": trig["seen"], "trade_at": trig["trade_at"]}
+        res["minutes_since"] = int((local - trig["end"]).total_seconds() // 60)
+        notes = []
+        if not trig["exact"]:
+            notes.append("收盤價取自 %s 的成交（MIS %s 的快照，%s 收盤前）：之後到收盤可能還有成交，可能差一檔"
+                         % (trig["trade_at"], trig["seen"], hm(trig["end"])))
+        if miss_note:
+            notes.append(miss_note + "，突破可能更早")
+        if notes:
+            res["data_note"] = "；".join(notes)
+        return res
+    if local >= cutoff:
+        res.update(status="expired", phase="after-close" if local >= close_dt else "after-cutoff",
+                   reason="到 %s 都沒有收在%s 之上的 K 棒，%s 之後不再新進場%s" % (
+                       hm(cutoff), what, hm(cutoff), ("（%s）" % miss_note) if miss_note else ""))
+        return res
+    res["phase"] = "open"
+    if last:
+        gap = lvl - last["c"]
+        head = "最後確定的收盤 %s（%s K 棒）" % (code_px(last["c"]), hm(last["et"]))
+        if gap == 0:
+            res["reason"] = "%s，剛好等於%s，不算站上" % (head, what)
+        elif gap < 0:
+            res["reason"] = "%s，站上了%s，但 %s 之前不新進場（設定檔）" % (head, what, hm(before))
+        else:
+            ticks = ("%d 檔，" % abs(tw.tick_steps(last["c"], lvl, code))) if tw.on_tick(lvl, code) else ""
+            res["reason"] = "%s，距%s 還差 %s 元（%s%+.2f%%）" % (
+                head, what, fmt_gap(gap, lvl, code), ticks, 100.0 * (last["c"] / lvl - 1))
+    else:
+        res["reason"] = "%s之後還沒有看得到收盤的 K 棒（%s）" % (
+            "開盤區間" if setup == "orb" else "開盤", what)
+    if miss_note:
+        res["reason"] += "；" + miss_note + "：用 entry.py watch --source mis --every 10，每根收盤前後都會抓到"
+    return res
+
+
 def fmt_gap(gap, ref, code):
     """A price difference with the decimals of the tick at ref: 0.5 at 109.5, 0.05 at 45.25."""
     places = max(0, -tw.tick_size(ref, code).normalize().as_tuple().exponent)
@@ -528,7 +839,7 @@ def entry_doc(res, now_utc):
             "bar_index": t.get("bar_index"), "price": t.get("price"), "level": res.get("level"),
             "interval": res["interval"],
             "opening_range": {"high": orr["high"], "low": orr["low"], "minutes": orr["minutes"]} if orr else None,
-            "source": "yahoo", "checked_at": iso(now_utc), "reason": res.get("reason")}
+            "source": res.get("source", "yahoo"), "checked_at": iso(now_utc), "reason": res.get("reason")}
 
 
 def write_json(path, doc):
@@ -561,13 +872,25 @@ def describe(res):
     code = res["symbol"]
     px = lambda p: tw.fmt_price(p, code)
     when = datetime.datetime.strptime(res["now"], "%Y-%m-%d %H:%M:%S")
-    head = "%s  %s %s 台北  %s，%s（Yahoo 免費資料，可能延遲）" % (
-        title(res), tw.day_label(when.date()), when.strftime("%H:%M"), setup_name(res), BARS[res["interval"]])
+    mis = res.get("source") == "mis"
+    head = "%s  %s %s 台北  %s，%s（%s）" % (
+        title(res), tw.day_label(when.date()), when.strftime("%H:%M"), setup_name(res), BARS[res["interval"]],
+        "證交所 MIS 盤中快照，只差幾秒" if mis else "Yahoo 免費資料，可能延遲")
     if res.get("data_time") and res["data_time"] <= res["now"] and res["data_time"][:10] == res["date"]:
         head += "，資料到 %s" % res["data_time"][11:]
     out = [head]
     orr = res.get("opening_range")
-    if orr:
+    if orr and mis:
+        start = datetime.datetime.strptime(res["opens"], "%H:%M")
+        end = start + datetime.timedelta(minutes=orr["minutes"])
+        if not orr["complete"]:
+            out.append("開盤區間 %s-%s：目前高點 %s，低點 %s（MIS 到 %s，還在形成）。" % (
+                hm(start), hm(end), px(orr["high"]), px(orr["low"]), orr["as_of"]))
+        else:
+            out.append("開盤區間 %s-%s：高點 %s，低點 %s（MIS %s 快照裡的當日最高最低%s）。" % (
+                hm(start), hm(end), px(orr["high"]), px(orr["low"]), orr["as_of"],
+                "" if orr["exact"] else "，多含了 %s 到 %s 之間的成交" % (hm(end), orr["as_of"])))
+    elif orr:
         start = datetime.datetime.strptime(res["opens"], "%H:%M")
         end = start + datetime.timedelta(minutes=orr["minutes"])
         out.append("開盤區間 %s-%s：高點 %s，低點 %s（%d 根 K 棒收了 %d 根%s）。" % (
@@ -664,14 +987,18 @@ class SimClock(object):
         self.t += datetime.timedelta(seconds=max(1, int(round(seconds))))
 
 
-def watch_loop(provider, clock, sleep, emit, opts, every=30, until=None, max_errors=5, on_trigger=None):
+def watch_loop(provider, clock, sleep, emit, opts, every=30, until=None, max_errors=5, on_trigger=None,
+               evaluator=None, poll=False):
     """Poll bar by bar until a trigger (0), expiry, the close or --until (1).
     provider(now_utc) -> chart, clock() -> naive UTC, sleep(seconds), emit(line).
     It sleeps in steps of at most `every` seconds and re-reads the clock each time,
-    so a computer that dozed off catches up as soon as it wakes."""
+    so a computer that dozed off catches up as soon as it wakes. evaluator(chart, now, **opts)
+    is evaluate() unless given; poll: fetch every `every` seconds all the time (MIS snapshots
+    show a close only when one is taken near the end of the bar or before its next trade)."""
+    evaluator = evaluator or evaluate
     step = INTERVALS[opts.get("interval", "5m")]
     cal = opts.get("cal") or tw.Calendar()
-    printed, errors, said_preopen, first = -1, 0, False, True
+    printed, errors, said_preopen, first, said_range = -1, 0, False, True, False
     next_fetch = None
     while True:
         now = clock()
@@ -705,14 +1032,20 @@ def watch_loop(provider, clock, sleep, emit, opts, every=30, until=None, max_err
                 return 1, None
             next_fetch = now + datetime.timedelta(seconds=every)
             continue
-        res = evaluate(chart, now, **opts)
+        res = evaluator(chart, now, **opts)
         bars = res["_bars"]
         lines = describe(res)
         fresh = first
+        set_range = res.get("source") == "mis" and (res.get("opening_range") or {}).get("complete")
         if first:
             emit(lines[0])
             if len(lines) > 1 and lines[1].startswith("開盤區間 "):
                 emit(lines[1])
+                said_range = set_range
+        elif set_range and not said_range:      # MIS has no range bars to print: say it once it is set
+            emit(lines[1])
+            said_range = True
+        if first:
             if bars and not res.get("trigger"):
                 emit(bar_line(bars[-1], res))
             printed = bars[-1]["slot"] if bars else -1
@@ -733,6 +1066,9 @@ def watch_loop(provider, clock, sleep, emit, opts, every=30, until=None, max_err
         if res["status"] == "expired" or local >= close_dt:
             emit("過期  %s。" % (res["reason"] or "收盤了，沒有觸發"))
             return 1, res
+        if res.get("final"):
+            emit("停止  %s。" % res["reason"])
+            return 1, res
         if until and local >= until:
             emit("到 --until %s 都沒有觸發，停止。%s。" % (hm(until), res["reason"]))
             return 1, res
@@ -740,7 +1076,7 @@ def watch_loop(provider, clock, sleep, emit, opts, every=30, until=None, max_err
         cur_slot = int((local - open_dt).total_seconds()) // step
         expected_last = cur_slot - 1
         behind = (not bars) or bars[-1]["slot"] < expected_last
-        if behind:
+        if behind or poll:
             wait = every
         else:
             nxt = open_dt + datetime.timedelta(seconds=(cur_slot + 1) * step + GRACE)
@@ -787,11 +1123,45 @@ def _load(a, sym, now, universe, market=None, name=None):
     return get_chart(code, a.interval, tw.to_taipei(now).date(), a.offline, real_today, market, name), now
 
 
+def _mis_results(a, stocks, now, opts, cal):
+    """stocks: [(code, market, name)]. Live (no --now, no --offline): one MIS snapshot of them all
+    is added to today's log first. --now replays today's log (or --offline PATH) up to that time.
+    -> ({code: result}, now)"""
+    live = not a.offline and now is None
+    if live:
+        now = utc_now()
+        day = tw.to_taipei(now).date()
+        path = mis_log_path(a.config, day)
+        log = read_mis_log(path) if cal.closed(day) else mis_snapshot([(c, m) for c, m, _ in stocks], path, day)
+    else:
+        path = a.offline or mis_log_path(a.config, tw.to_taipei(now).date())
+        log = read_mis_log(path, required=True)
+        if now is None:
+            day = datetime.date.fromisoformat(log.get("date"))
+            times = [_at(day, s.get("at")) for st in (log.get("stocks") or {}).values() for s in st.get("snaps", [])]
+            times = [t for t in times if t]
+            if not times:
+                raise EntryError("%s 裡沒有快照" % path)
+            now = tw.taipei_to_utc(max(times))
+    out = {}
+    for code, market, name in stocks:
+        st = ((log or {}).get("stocks") or {}).get(code) or {"market": market, "snaps": []}
+        if name and not st.get("name"):
+            st = dict(st, name=name)
+        out[code] = evaluate_mis(st, code, now, live=live, **opts)
+    return out, now
+
+
 def cmd_check(a):
     cfg, cal, universe = _setup(a)
     opts = _opts(a, cfg, cal)
-    chart, now = _load(a, a.symbol, parse_now(a.now) if a.now else None, universe)
-    res = evaluate(chart, now, **opts)
+    if a.source == "mis":
+        code, market, name = resolve(a.symbol, universe)
+        got, now = _mis_results(a, [(code, market, name)], parse_now(a.now) if a.now else None, opts, cal)
+        res = got[code]
+    else:
+        chart, now = _load(a, a.symbol, parse_now(a.now) if a.now else None, universe)
+        res = evaluate(chart, now, **opts)
     if a.write:
         write_json(a.write, entry_doc(res, now))
     if a.json:
@@ -811,8 +1181,14 @@ def cmd_watch(a):
     if a.every <= 0:
         raise EntryError("--every 必須大於 0 秒")
     start = parse_now(a.now) if a.now else None
+    mis = a.source == "mis"
+    if mis and a.every < MIS_MIN_EVERY:
+        raise EntryError("--source mis 的 --every 至少 %d 秒：MIS 是證交所的公開網站，別問太快" % MIS_MIN_EVERY)
     if a.offline or start is not None:
-        if start is None:
+        if start is None and mis:               # a saved MIS log replays from just before its day opens
+            day = datetime.date.fromisoformat(read_mis_log(a.offline, required=True).get("date"))
+            start = tw.taipei_to_utc(datetime.datetime.combine(day, datetime.time(8, 59)))
+        elif start is None:
             start = _load(a, code, None, universe, market, name)[1]
         clock = SimClock(start)
         now_fn, sleep_fn = clock.now, clock.sleep
@@ -820,11 +1196,27 @@ def cmd_watch(a):
         now_fn, sleep_fn = utc_now, _sleep
     real_today = tw.to_taipei(utc_now()).date()
     found = {"market": market}
+    live = not (a.offline or a.now)
+    saved = {}
 
     def provider(now):
-        ch = get_chart(code, a.interval, tw.to_taipei(now).date(), a.offline, real_today, found["market"], name)
-        found["market"] = ch["market"]          # ask Yahoo for the right market from now on
-        return ch
+        if not mis:
+            ch = get_chart(code, a.interval, tw.to_taipei(now).date(), a.offline, real_today, found["market"], name)
+            found["market"] = ch["market"]          # ask Yahoo for the right market from now on
+            return ch
+        day = tw.to_taipei(now).date()
+        if live:
+            log = mis_snapshot([(code, found["market"])], mis_log_path(a.config, day), day)
+        else:
+            path = a.offline or mis_log_path(a.config, day)
+            if path not in saved:
+                saved[path] = read_mis_log(path, required=True)
+            log = saved[path]
+        st = (log.get("stocks") or {}).get(code) or {"market": found["market"], "snaps": []}
+        found["market"] = st.get("market") or found["market"]
+        return dict(st, name=st.get("name") or name)
+
+    evaluator = (lambda st, now, **o: evaluate_mis(st, code, now, live=live, **o)) if mis else None
 
     until = None
     if a.until:
@@ -839,7 +1231,7 @@ def cmd_watch(a):
         print(line, flush=True)
 
     code_, _ = watch_loop(provider, now_fn, sleep_fn, emit, opts, every=a.every, until=until,
-                          on_trigger=on_trigger)
+                          on_trigger=on_trigger, evaluator=evaluator, poll=mis)
     return code_
 
 
@@ -856,10 +1248,16 @@ def cmd_watchlist(a):
     hits = [h for h in (doc.get("hits") or []) if isinstance(h, dict) and h.get("symbol")]
     if not hits:
         raise EntryError("%s 裡沒有命中的股票：掃描器沒找到可以盯的" % a.watchlist)
-    if a.offline and not os.path.isdir(a.offline):
+    mis = a.source == "mis"
+    if a.offline and not mis and not os.path.isdir(a.offline):
         raise EntryError("watchlist 的 --offline 要一個放 <代號>.json 的資料夾")
     now = parse_now(a.now) if a.now else None
     rows = []
+    if mis:                                     # one MIS request for the whole list
+        stocks = [resolve(str(h["symbol"]).upper(), universe, h.get("market"), h.get("name")) for h in hits]
+        got, now = _mis_results(a, stocks, now, opts, cal)
+        hits = []
+        rows = [(c, got[c], None) for c, _, _ in stocks]
     for i, h in enumerate(hits):
         sym = str(h["symbol"]).upper()
         o = dict(opts)
@@ -897,7 +1295,8 @@ def cmd_watchlist(a):
                 r.get("name") or ""), widths))
         n = sum(1 for _, r, _ in rows if r and r["status"] == "triggered")
         print("%d 檔中有 %d 檔觸發。挑一檔，再執行 entry.py check <代號> --write，然後 /trader-exit。" % (len(rows), n))
-        print("Yahoo 免費 K 棒，非官方，可能延遲。" + NOTHING)
+        print(("證交所 MIS 盤中快照，收盤價是快照看到的最後一筆成交。" if mis else "Yahoo 免費 K 棒，非官方，可能延遲。")
+              + NOTHING)
     return 0 if any(r and r["status"] == "triggered" for _, r, _ in rows) else 1
 
 
@@ -914,7 +1313,10 @@ def main(argv=None):
         p.add_argument("--min-volume-x", type=float, help="trigger bar volume vs the range bars' average")
         p.add_argument("--side", default="buy", choices=["buy", "long", "sell", "short"], help="buy only")
         p.add_argument("--now", help='pretend it is this Taipei time, e.g. "2026-11-02 09:20"')
-        p.add_argument("--offline", metavar="PATH", help="saved Yahoo chart JSON (.json/.json.gz) or a folder")
+        p.add_argument("--offline", metavar="PATH",
+                       help="saved Yahoo chart JSON (.json/.json.gz) or a folder; with --source mis a MIS log")
+        p.add_argument("--source", choices=["yahoo", "mis"], default="yahoo",
+                       help="yahoo: 5-minute bars about 20 minutes late; mis: TWSE MIS snapshots in real time")
         p.add_argument("--config", default="trader/config.json")
 
     p = sub.add_parser("check", help="the setup's status right now")

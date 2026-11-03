@@ -421,22 +421,24 @@ def status_of(order, risk, state, today, now=None, api=False):
     """(ready, label, risk_result). api: the Shioaji flow, where a yes expires before it is sent."""
     fp = fingerprint(order)
     rv, why = risk_verdict(risk, fp, today)
+    rec = latest(state, fp, today)
+    st = (rec or {}).get("status")
+    at = str((rec or {}).get("at", ""))[11:16]
+    if rec and st != "approved":
+        # already decided today; a later check blocks it as a duplicate and, once the position
+        # is flat, as a short without a stop (2026-11-03 13:21): that is not news about this ticket
+        return False, "DONE：%s（%s）" % (STATUS_WORDS.get(st, st), at), rv
     if rv is None:
         return False, "NOT READY：" + why, None
     if rv.get("verdict") != "PASS":
         return False, "BLOCKED：trader-risk 擋下：" + "；".join(rv.get("reasons", [])), rv
-    rec = latest(state, fp, today)
+    if rec and api:
+        if now is not None and yes_expired(rec, now):
+            return True, ("READY：你 %s 的 yes 已經超過 %d 分鐘，過期了；要送出請再回覆一次 yes"
+                          % (at, SEND_WITHIN_MINUTES)), rv
+        return False, "APPROVED：你在 %s 回覆了 yes，等 ticket.py send 送到永豐金" % at, rv
     if rec:
-        st = rec.get("status")
-        at = str(rec.get("at", ""))[11:16]
-        if st == "approved" and api:
-            if now is not None and yes_expired(rec, now):
-                return True, ("READY：你 %s 的 yes 已經超過 %d 分鐘，過期了；要送出請再回覆一次 yes"
-                              % (at, SEND_WITHIN_MINUTES)), rv
-            return False, "APPROVED：你在 %s 回覆了 yes，等 ticket.py send 送到永豐金" % at, rv
-        if st == "approved":
-            return False, "APPROVED：你在 %s 回覆了 yes，等你自己在券商 App 送出，再用 result 記錄" % at, rv
-        return False, "DONE：%s（%s）" % (STATUS_WORDS.get(st, st), at), rv
+        return False, "APPROVED：你在 %s 回覆了 yes，等你自己在券商 App 送出，再用 result 記錄" % at, rv
     return True, "READY：trader-risk 今天通過了這一張，等你回覆 yes", rv
 
 
@@ -858,7 +860,14 @@ def cmd_flatten(a):
     else:
         order.update({"price_type": "market", "tif": "IOC"})
     order["trade"] = "day_trade"
-    order["why"] = "%s 前出清：賣掉今天 %s 的當沖部位（股數來自 %s）" % (flat_by, _who(order), source)
+    try:
+        early = t < tw.parse_hhmm(flat_by, "flat_by")
+    except ValueError:
+        early = False
+    if early:       # a stop or a target before flat_by (2026-11-03 10:48 said "13:20 前出清" for a stop)
+        order["why"] = "提前出場：賣掉今天 %s 的當沖部位（股數來自 %s；最晚 %s 前出清）" % (_who(order), source, flat_by)
+    else:
+        order["why"] = "%s 前出清：賣掉今天 %s 的當沖部位（股數來自 %s）" % (flat_by, _who(order), source)
     order["plan"] = {"date": today, "flat_by": flat_by, "limit_down": plan.get("limit_down")}
     old = read_json(a.orders, "委託單", required=False)
     replaced = len(old.get("orders", [])) if isinstance(old, dict) else 0
