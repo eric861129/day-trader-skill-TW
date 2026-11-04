@@ -676,6 +676,12 @@ def check(orders, cfg, portfolio=None, prices=None, state=None, today=None, now=
             if long and ref and limit_up and ref >= limit_up - EPS:
                 later.append("漲跌停：進場價 %s 已經是漲停價 %s：鎖住時買不到，打開時可能急跌"
                              % (_p(ref, code), _p(limit_up, code)))
+            # the risk above is from the plan's entry; a price already past the stop makes it a different
+            # trade (2026-11-04 11:46: 7780 at 14.75 under its 14.90 stop passed with a 15.05 entry)
+            if stop and live and ((long and live <= stop + EPS) or (not long and live >= stop - EPS)):
+                later.append("停損：%s 最新價 %s 已經%s停損 %s：計畫失效，進場就在停損外面；"
+                             "要做就用 trader-exit 依現在的價格重新規劃"
+                             % (code, _p(live, code), "跌到" if long else "漲到", _p(stop, code)))
             if not stop:
                 if c.get("require_stop", True):
                     later.append("停損：沒有停損。每筆進場都要有（\"require_stop\": true），由 trader-exit 算、"

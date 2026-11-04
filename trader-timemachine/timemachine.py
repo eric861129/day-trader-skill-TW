@@ -679,6 +679,8 @@ def normalize_plan(raw, src="flags"):
     for key in ("prev_close", "limit_up", "limit_down", "cost_per_share", "cost_r"):
         out[key] = _opt_num(raw.get(key))
     out["limits_source"] = raw.get("limits_source") if out["limit_up"] and out["limit_down"] else None
+    # trader-exit asked MIS and got no limits: an ETF of foreign shares or bonds has none
+    out["no_limits"] = raw.get("limits_source") == "mis" and not (out["limit_up"] and out["limit_down"])
     return out
 
 
@@ -716,10 +718,13 @@ def resolve_rule(plan, entry_day):
 def resolve_limits(plan, meta, days):
     """(limit_up, limit_down, source, note). The plan's limits; else 10 % around the plan's
     prev_close; else around Yahoo's previousClose when the plan is for the data's last day;
-    else around the previous session's last 5-minute close (the auction is not in the data)."""
+    else around the previous session's last 5-minute close (the auction is not in the data).
+    None when the plan says MIS had none (00931B on 2026-11-04 was clamped to 10 % before)."""
     code = plan["symbol"]
     if plan["limit_up"] and plan["limit_down"]:
         return plan["limit_up"], plan["limit_down"], plan.get("limits_source") or "plan", ""
+    if plan.get("no_limits"):
+        return None, None, "mis", "MIS 沒有給漲跌停價（國外成分 ETF 沒有漲跌幅限制）：重播沒有夾在漲跌停之間"
     ref, how = plan["prev_close"], "plan 的昨收"
     if ref is None:
         last_day = None
@@ -844,21 +849,25 @@ def time_machine(text, plan, now_utc, replays=10000, seed=19, window=2, until=No
         raise TMError("--until %s 在 %s 進場之後沒有 K 棒可以重播" % (clock24(until_min), plan["entry_time"]))
     days = split_sessions(bars)
     entry_day = days.get(plan["date"], {})
-    if k not in entry_day:
-        day = datetime.date.fromisoformat(plan["date"])
-        closed = cal.closed(day)
-        if closed:
-            reason = "那天休市：%s" % closed
-        elif not entry_day:
-            reason = "那天沒有 K 棒"
-        else:
-            reason = "資料只到 %s 那根" % entry_day[max(entry_day)]["start"]
-        raise TMError("資料裡沒有進場那根 K 棒：%s %s 的 %s 那根（%s 收盤）還沒有收完的資料（%s）"
-                      % (code, plan["date"], clock24(OPEN_MIN + 5 * k), plan["entry_time"], reason))
-    eb = entry_day[k]
     warn = []
+    day = datetime.date.fromisoformat(plan["date"])
+    local = tw.to_taipei(now_utc).replace(tzinfo=None)
+    so_far = ("資料只到 %s 那根" % entry_day[max(entry_day)]["start"]) if entry_day else "那天沒有 K 棒"
+    if k not in entry_day:
+        closed = cal.closed(day)
+        # a plan from MIS (trader-entry --source mis) comes 20 minutes before Yahoo's bars do;
+        # the replay draws only from past sessions, so a bar that has closed by the clock will do
+        late = (not closed and local.date() == day
+                and local >= datetime.datetime.combine(day, datetime.time(*divmod(OPEN_MIN + 5 * (k + 1), 60))))
+        if not late:
+            raise TMError("資料裡沒有進場那根 K 棒：%s %s 的 %s 那根（%s 收盤）還沒有收完的資料（%s）"
+                          % (code, plan["date"], clock24(OPEN_MIN + 5 * k), plan["entry_time"],
+                             ("那天休市：%s" % closed) if closed else so_far))
+        warn.append("Yahoo 還沒有進場那根 K 棒（%s 收盤；盤中延遲約 20 分鐘，%s）：沒有核對進場價在那根 K 棒裡。"
+                    "重播只抽過去的交易日，不受影響" % (plan["entry_time"], so_far))
+    eb = entry_day.get(k)
     tick = float(tw.tick_size(plan["entry"], code))
-    if not eb["l"] - tick / 2 <= plan["entry"] <= eb["h"] + tick / 2:
+    if eb and not eb["l"] - tick / 2 <= plan["entry"] <= eb["h"] + tick / 2:
         warn.append("計畫的進場價 %s 不在那根 K 棒的 %s 到 %s 之間"
                     % (tw.fmt_price(plan["entry"], code), tw.fmt_price(snap(eb["l"], code), code),
                        tw.fmt_price(snap(eb["h"], code), code)))
@@ -956,8 +965,13 @@ def report(doc):
     ]
     if m.get("limit_up") and m.get("limit_down"):
         lines.append("每一根重播都夾在漲停 %s 和跌停 %s 之間。" % (fp(m["limit_up"]), fp(m["limit_down"])))
+    tax = tw.sell_tax_rate(code, True, datetime.date.fromisoformat(p["date"]))
+    if tw.is_etf_like(code):
+        tax_text = "加 ETF 證交稅" if tax else "債券 ETF 免證交稅"
+    else:
+        tax_text = "加當沖證交稅" if tax == tw.DAY_TRADE_TAX_RATE else "加證交稅"
     lines += [
-        "成本：每股約 %.2f（手續費買賣各一次，加當沖證交稅），是 %.2fR。" % (m["cost_per_share"], m["cost_r"]),
+        "成本：每股約 %.2f（手續費買賣各一次，%s），是 %.2fR。" % (m["cost_per_share"], tax_text, m["cost_r"]),
         "",
         "  先到停利   %s" % pc(m["p_target"]),
         "  先到停損   %s" % pc(m["p_stop"]),

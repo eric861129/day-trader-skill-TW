@@ -363,7 +363,8 @@ def log_mis(log, quotes, day):
     the best bid and ask, the day's volume in lots). A quote of another day is left out. A
     snapshot with no new trade (same high, low, trade, trade time and volume) moves the last
     one's time forward instead: the later time proves the same quiet stretch, and a full day
-    of a thin stock stays small."""
+    of a thin stock stays small. The snapshot taken at its trade's time is kept, though: its
+    volume is what later ones must show to prove nothing traded since (see mis_closes)."""
     if not log or log.get("date") != day.isoformat():
         log = {"date": day.isoformat(), "source": "mis", "stocks": {}}
     for code, q in quotes.items():
@@ -377,8 +378,9 @@ def log_mis(log, quotes, day):
                 "trade": q.get("trade_price"), "trade_at": q.get("trade_time"),
                 "bid": q.get("bid"), "ask": q.get("ask"), "volume_lots": q.get("volume_lots") or 0}
         same = ("high", "low", "trade", "trade_at", "volume_lots")
-        if st["snaps"] and (st["snaps"][-1]["at"] == snap["at"]
-                            or all(st["snaps"][-1].get(k) == snap[k] for k in same)):
+        last = st["snaps"][-1] if st["snaps"] else None
+        if last and (last["at"] == snap["at"]
+                     or (last["at"] != last.get("trade_at") and all(last.get(k) == snap[k] for k in same))):
             st["snaps"][-1] = snap
         else:
             st["snaps"].append(snap)
@@ -603,30 +605,50 @@ def _at(day, text):
 
 
 def mis_closes(snaps, day, step):
-    """The bar closes the snapshots prove. A snapshot says the last trade was P at T and nothing
-    traded from T to the snapshot, so P closed T's bar when the snapshot came after that bar
-    ended (exact), and the bars that ended in between had no trade (quiet). A snapshot within
-    MIS_NEAR seconds of the end of its own bar stands in for that close (not exact).
-    -> ({slot: {"c", "exact", "seen"}}, {quiet slots})"""
+    """The bar closes the snapshots prove. MIS shows a trade's price only now and then (z: 32
+    of 402 snapshots at 09:20 on 2026-11-04), and its "trade" repeats the last one it showed
+    while trades without a shown price go on (台積電's stayed at 09:17:25 while 113 lots
+    traded). So a trade P at T says nothing about the time after T, unless a snapshot shows the
+    day's volume of the snapshot taken at T: then nothing traded from T to it. P closed T's bar
+    when such a snapshot came after that bar ended (exact), and the bars that ended in between
+    had no trade (quiet). A trade, or a proven quiet stretch, that ends within MIS_NEAR seconds
+    of the end of its bar stands in for that close (not exact). Two snapshots with the same
+    volume prove the bars between them quiet as well.
+    -> ({slot: {"c", "exact", "seen", "trade_at"}}, {quiet slots})"""
     open_dt = datetime.datetime.combine(day, tw.OPEN)
     auction = datetime.datetime.combine(day, tw.CLOSING_AUCTION)
     end_of = lambda k: open_dt + datetime.timedelta(seconds=(k + 1) * step)
     closes, quiet = {}, set()
+    volume_then = {}                       # trade time -> the day's volume in its own snapshot
+    for s in snaps:
+        if s.get("trade") and s.get("volume_lots") and s.get("trade_at") == s.get("at"):
+            volume_then.setdefault(s["at"], s["volume_lots"])
     for s in snaps:
         tt = _at(day, s.get("trade_at"))
         if not s.get("trade") or not s.get("volume_lots") or tt is None:
             continue                       # no trade today yet: the trade is yesterday's
         if tt < open_dt or tt >= auction or tt > s["_at"]:
             continue
+        # quiet up to the snapshot only when its volume is still that of the trade's own snapshot;
+        # otherwise it may have traded since, at prices MIS did not show
+        until = s["_at"] if volume_then.get(s["trade_at"]) == s["volume_lots"] else tt
         k = int((tt - open_dt).total_seconds()) // step
-        if s["_at"] >= end_of(k):
+        if until >= end_of(k):
             closes[k] = {"c": s["trade"], "exact": True, "seen": s["at"], "trade_at": s["trade_at"]}
             j = k + 1
-            while end_of(j) <= min(s["_at"], auction):
+            while end_of(j) <= min(until, auction):
                 quiet.add(j)
                 j += 1
-        elif (end_of(k) - s["_at"]).total_seconds() <= MIS_NEAR and not closes.get(k, {}).get("exact"):
+        elif ((end_of(k) - until).total_seconds() <= MIS_NEAR and not closes.get(k, {}).get("exact")
+              and s["trade_at"] > closes.get(k, {}).get("trade_at", "")):     # a later trade, or the first sight
             closes[k] = {"c": s["trade"], "exact": False, "seen": s["at"], "trade_at": s["trade_at"]}
+    for a, b in zip(snaps, snaps[1:]):
+        if a.get("volume_lots") and a["volume_lots"] == b.get("volume_lots"):
+            k = max(0, -(-int((a["_at"] - open_dt).total_seconds()) // step))      # first bar starting after a
+            while end_of(k) <= min(b["_at"], auction):
+                if k not in closes:
+                    quiet.add(k)
+                k += 1
     return closes, quiet
 
 
@@ -645,8 +667,9 @@ def slot_spans(slots, open_dt, step):
 
 def mis_range(snaps, day, or_minutes, n_or):
     """The day's high and low when the opening range ended, from the first snapshot after it.
-    Exact when the last trade then was before the end, or an earlier snapshot already had the
-    same high and low; otherwise it may hold a few seconds more, up to MIS_NEAR.
+    Exact when the last snapshot before the end already had the same high and low (they only
+    grow apart); otherwise it may hold a few seconds more, up to MIS_NEAR. The snapshot's last
+    shown trade being before the end proves nothing: later trades may have no shown price.
     -> (opening_range, None) or (None, why not)."""
     open_dt = datetime.datetime.combine(day, tw.OPEN)
     or_end = open_dt + datetime.timedelta(minutes=or_minutes)
@@ -656,9 +679,7 @@ def mis_range(snaps, day, or_minutes, n_or):
         return None, "還沒有 %s 之後的 MIS 快照" % hm(or_end)
     s = after[0]
     before = [p for p in seen if p["_at"] < or_end]
-    tt = _at(day, s.get("trade_at"))
-    exact = bool((before and (before[-1]["high"], before[-1]["low"]) == (s["high"], s["low"]))
-                 or (tt is not None and tt < or_end and s.get("volume_lots")))
+    exact = bool(before and (before[-1]["high"], before[-1]["low"]) == (s["high"], s["low"]))
     late = (s["_at"] - or_end).total_seconds()
     if not exact and late > MIS_NEAR:
         return None, ("MIS 在 %s 之後的第一張快照是 %s，那時的最高最低可能已經含區間之後的成交，不能當開盤區間。"
@@ -786,8 +807,8 @@ def evaluate_mis(stock, code, now_utc, setup="orb", or_minutes=15, interval="5m"
         res["minutes_since"] = int((local - trig["end"]).total_seconds() // 60)
         notes = []
         if not trig["exact"]:
-            notes.append("收盤價取自 %s 的成交（MIS %s 的快照，%s 收盤前）：之後到收盤可能還有成交，可能差一檔"
-                         % (trig["trade_at"], trig["seen"], hm(trig["end"])))
+            notes.append("收盤價取自 %s 的成交（%s 收盤前，MIS %s 的快照看到）：之後到收盤可能還有成交，收盤價可能不一樣"
+                         % (trig["trade_at"], hm(trig["end"]), trig["seen"]))
         if miss_note:
             notes.append(miss_note + "，突破可能更早")
         if notes:
@@ -814,7 +835,8 @@ def evaluate_mis(stock, code, now_utc, setup="orb", or_minutes=15, interval="5m"
         res["reason"] = "%s之後還沒有看得到收盤的 K 棒（%s）" % (
             "開盤區間" if setup == "orb" else "開盤", what)
     if miss_note:
-        res["reason"] += "；" + miss_note + "：用 entry.py watch --source mis --every 10，每根收盤前後都會抓到"
+        res["reason"] += ("；" + miss_note + "：MIS 只在部分快照給成交價，用 entry.py watch --source mis --every 10"
+                          "能多看到幾根，成交熱絡的股票還是會漏")
     return res
 
 
@@ -875,7 +897,7 @@ def describe(res):
     mis = res.get("source") == "mis"
     head = "%s  %s %s 台北  %s，%s（%s）" % (
         title(res), tw.day_label(when.date()), when.strftime("%H:%M"), setup_name(res), BARS[res["interval"]],
-        "證交所 MIS 盤中快照，只差幾秒" if mis else "Yahoo 免費資料，可能延遲")
+        "證交所 MIS 盤中快照，可能落後幾秒到一兩分鐘" if mis else "Yahoo 免費資料，可能延遲")
     if res.get("data_time") and res["data_time"] <= res["now"] and res["data_time"][:10] == res["date"]:
         head += "，資料到 %s" % res["data_time"][11:]
     out = [head]

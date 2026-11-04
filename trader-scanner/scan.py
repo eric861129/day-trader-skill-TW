@@ -106,6 +106,7 @@ SETUPS = [
     ("reclaim_ma20", "站回 20 日均線"),
     ("oversold", "超賣（RSI 低於 30）"),
     ("oversold_bounce", "超賣反彈"),
+    ("daytrade", "適合當沖（波動大、成交熱）"),
 ]
 LABEL = dict(SETUPS)
 
@@ -725,6 +726,120 @@ def scan_daily(data, symbols, now_utc, min_price, min_volume, cal=None, uni=None
     return hits, counts, last_date
 
 
+DT_DAYS = 10            # complete days the day-trade numbers average over
+DT_MAX_CONFIRM = 150    # stage-2 daily v8 charts per daytrade scan, most promising first
+DT_MIN_MOVE = 1.5       # stage 1: mean close-to-close move (%) a candidate needs
+
+
+def daily_bars(series, now_utc, cal=None):
+    """[(date, open, high, low, close, volume)] of COMPLETE daily bars with all of them known,
+    by the same rules as daily_closes (today only after 13:30, no closed days)."""
+    cal = calendar(cal)
+    now = tw.to_taipei(now_utc)
+    today = now.date()
+    today_done = not cal.is_trading_day(today) or now.time() >= tw.CLOSE
+    cols = [series.get(k) or [] for k in ("o", "h", "l", "c", "v")]
+    out = {}
+    for i, ts in enumerate(series["t"]):
+        row = [c[i] if i < len(c) else None for c in cols]
+        if any(x is None for x in row):
+            continue
+        d = ts_to_taipei(ts).date()
+        if d > today or (d == today and not today_done) or not cal.is_trading_day(d):
+            continue
+        out[d] = tuple(float(x) for x in row)
+    return [(d,) + out[d] for d in sorted(out)]
+
+
+def daytrade_stats(series, now_utc, n=DT_DAYS, cal=None):
+    """A daily v8 series -> how a stock moved and traded over its last n complete days: the mean
+    day range as a percent of the previous close ((high - low) / previous close), the last day's,
+    the mean volume (shares) and turnover (close x volume). None with fewer than n + 1 days."""
+    bars = daily_bars(series, now_utc, cal)
+    if len(bars) < n + 1:
+        return None
+    last = bars[-n:]
+    prev = [b[4] for b in bars[-n - 1:-1]]
+    ranges = [100.0 * (b[2] - b[3]) / p for b, p in zip(last, prev) if p]
+    return {"range_pct": sum(ranges) / len(ranges), "range_last_pct": ranges[-1],
+            "volume": sum(b[5] for b in last) / n, "turnover": sum(b[4] * b[5] for b in last) / n,
+            "close": last[-1][4], "close_date": last[-1][0], "days": n}
+
+
+def scan_daytrade(stage1, symbols, now_utc, min_price, min_volume, min_range, max_price=None, confirm=None,
+                  max_confirm=None, top=None, cal=None, uni=None):
+    """Stocks that suit a day trade: they move a lot within the day and trade a lot.
+    stage1 = {SYM: series} (spark daily closes or v8 daily charts). Stage 1 keeps a stock whose
+    last close is from min_price to max_price (one lot within the order cap), whose last volume
+    is at least half of min_volume, and whose mean close-to-close move over DT_DAYS days is at
+    least DT_MIN_MOVE %; the max_confirm most promising (move x turnover) go on. Stage 2 needs
+    highs, lows and volumes: confirm(sym) -> a daily v8 series (None = stage 1 has them). A hit
+    has a mean day range of min_range % or more and a mean volume of min_volume or more, ranked
+    by range x turnover. Returns (hits, counts, failed {sym: why})."""
+    counts = {"requested": len(symbols), "fetched": 0, "illiquid": 0, "pricey": 0, "short": 0, "quiet": 0,
+              "candidates": 0, "confirmed": 0, "unconfirmed": 0}
+    cands, failed, hits = [], {}, []
+    for sym in symbols:
+        s = stage1.get(sym)
+        if not s:
+            continue
+        counts["fetched"] += 1
+        closes = [c for _, c in daily_closes(s, now_utc, cal)]
+        meta = s.get("meta") or {}
+        vol = meta.get("regularMarketVolume")
+        if s.get("v"):
+            vs = [v for v in s["v"] if v is not None]
+            vol = vs[-1] if vs else vol
+        if len(closes) < DT_DAYS + 1:
+            counts["short"] += 1
+            continue
+        price = closes[-1]
+        if price < min_price or (min_volume > 0 and (vol is None or vol < min_volume / 2.0)):
+            counts["illiquid"] += 1
+            continue
+        if max_price and price > max_price:
+            counts["pricey"] += 1
+            continue
+        moves = [abs(closes[i] / closes[i - 1] - 1) * 100 for i in range(len(closes) - DT_DAYS, len(closes))]
+        move = sum(moves) / len(moves)
+        if move < DT_MIN_MOVE:
+            counts["quiet"] += 1
+            continue
+        cands.append((sym, move * price * (vol or 0), s))
+    counts["candidates"] = len(cands)
+    cands.sort(key=lambda x: -x[1])
+    if confirm is not None and max_confirm and len(cands) > max_confirm:
+        counts["unconfirmed"] = len(cands) - max_confirm
+        cands = cands[:max_confirm]
+    for sym, _, s in cands:
+        if confirm is not None:
+            try:
+                s = confirm(sym)
+            except ScanError as e:
+                failed[sym] = str(e)
+                continue
+        st = daytrade_stats(s, now_utc, DT_DAYS, cal)
+        if st is None:
+            failed[sym] = "日 K 少了最高、最低或成交量"
+            continue
+        counts["confirmed"] += 1
+        if st["range_pct"] < min_range or st["volume"] < min_volume:
+            continue
+        if max_price and st["close"] > max_price:
+            continue
+        hits.append(dict(ident(sym, uni, s.get("meta") or {}), setups=["daytrade"], price=round(st["close"], 2),
+                         close_date=st["close_date"].isoformat(), range_pct=round(st["range_pct"], 2),
+                         range_last_pct=round(st["range_last_pct"], 2), volume=int(st["volume"]),
+                         turnover=int(st["turnover"]), lot_twd=int(round(st["close"] * LOT)),
+                         score=round(st["range_pct"] * st["turnover"] / 1e8, 1)))
+    hits.sort(key=lambda h: (-h["score"], h["symbol"]))
+    counts["passed"] = len(hits)
+    if top:
+        hits = hits[:top]
+    counts["hits"] = len(hits)
+    return hits, counts, failed
+
+
 def offday_line(counts):
     if not counts.get("offday"):
         return ""
@@ -1177,6 +1292,96 @@ def _n(x):
     return str(int(x)) if x == int(x) else "%.2f" % x
 
 
+def cmd_daytrade(a):
+    t0 = time.time()
+    now = parse_now(a.now)
+    cfg = read_config(a.config)
+    cal = tw.load_calendar(trader_dir(a.config), cfg)
+    uni = tw.load_universe(a.universe or DEFAULT_UNIVERSE)
+    max_price = a.max_price
+    if max_price is None and cfg.get("max_order_twd"):
+        max_price = float(cfg["max_order_twd"]) / LOT       # one lot must fit the order cap
+    offline_syms = None
+    confirm = None
+    if a.offline:
+        data, failed = load_offline(a.offline)
+        offline_syms = sorted(set(data) | set(failed))
+    symbols, pairs = read_symbols(a, uni, offline_syms)
+    if not a.offline:
+        progress(a, "第一階段：%s 檔的日收盤價（%d 次 spark 請求）..."
+                 % ("{:,}".format(len(symbols)), (len(symbols) + SPARK_MAX - 1) // SPARK_MAX))
+        data, failed = fetch_spark(symbols, "3mo", "1d", a.pause, a)
+        done = []
+
+        def confirm(sym):
+            if a.pause:
+                SLEEP(a.pause)
+            done.append(sym)
+            if len(done) % 50 == 0:
+                progress(a, "  第二階段：已抓 %d 張日 K" % len(done))
+            return parse_chart(yahoo_get(chart_path(sym, "3mo", "1d")), sym)
+    symbols = settle(symbols, pairs, data, failed)
+    hits, counts, failed2 = scan_daytrade(data, symbols, now, a.min_price, a.min_volume, a.min_range, max_price,
+                                          confirm, a.max_confirm, a.top, cal, uni)
+    failed = dict(failed or {})
+    failed.update(failed2)
+    nfailed = len([s for s in symbols if s in failed])
+    day = watch_day(now, cal)
+    disp, disp_note = disposition_for(a)
+    hits, held = apply_disposition(hits, disp, day, a.keep_disposition)
+    dates = sorted({h["close_date"] for h in hits})
+    as_of = ("%s 收盤" % dates[-1]) if dates else None
+    doc = {"created_by": "trader-scanner", "created_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "mode": "daytrade",
+           "as_of": as_of, "for_session": day.isoformat(), "universe": len(symbols), "scanned": counts["confirmed"],
+           "failed": nfailed, "unconfirmed": counts["unconfirmed"], "source": "yahoo",
+           "filters": {"min_price": a.min_price, "max_price": max_price, "min_volume": a.min_volume,
+                       "min_range_pct": a.min_range, "days": DT_DAYS, "top": a.top},
+           "disposition": {"checked": disp is not None, "held": [c for c, _ in held]},
+           "note": NOTE, "hits": hits}
+    if a.offline:
+        doc["offline"] = os.path.basename(a.offline.rstrip("/\\"))
+    if not a.no_write:
+        write_json(a.out, doc)
+    if a.json:
+        print(json.dumps(dict(doc, counts=counts, seconds=round(time.time() - t0, 1)), ensure_ascii=False, indent=2))
+        return 0 if hits else 1
+    local = tw.to_taipei(now)
+    print("當沖候選掃描，%s%s，最近 %d 個交易日的日 K（Yahoo），給 %s 的盤用。" % (
+        tw.day_label(local.date()), tw.hm(local), DT_DAYS, day.isoformat()))
+    print("條件：平均日內高低差 %s%% 以上（最高減最低，除以前一天收盤）、平均成交量 %s 張以上、股價 %s 到 %s 元"
+          "（一張不超過單筆金額上限）。" % (_n(a.min_range), lots(a.min_volume), _n(a.min_price),
+                                       _n(max_price) if max_price else "不限"))
+    print("抓到 %s 檔中的 %s 檔圖%s；%s 檔候選（平均每天收盤漲跌 %.1f%% 以上），%s 檔用日 K 的高低點和成交量確認。"
+          % ("{:,}".format(len(symbols)), "{:,}".format(counts["fetched"]),
+             ("（%s 檔失敗或沒有資料）" % "{:,}".format(nfailed)) if nfailed else "",
+             "{:,}".format(counts["candidates"]), DT_MIN_MOVE, "{:,}".format(counts["confirmed"])))
+    if counts["pricey"]:
+        print("%s 檔股價超過 %s 元，一張就超過單筆金額上限，不列入。" % ("{:,}".format(counts["pricey"]), _n(max_price)))
+    if counts["unconfirmed"]:
+        print("只確認了最有希望的 %s 檔，還有 %s 檔候選沒確認（--max-confirm 0 全部確認）。"
+              % ("{:,}".format(a.max_confirm), "{:,}".format(counts["unconfirmed"])))
+    if hits:
+        print("%d 檔符合%s，波動 x 成交金額大的排前面：" % (
+            counts["passed"], ("，列前 %d 檔" % len(hits)) if counts["passed"] > len(hits) else ""))
+        print("  代號        收盤  平均高低差  最近一天  平均成交量    一張金額  名稱")
+        for h in hits[:a.show]:
+            print("  %-6s %9s  %8.1f%%  %7.1f%%  %9s  %10s  %s" % (
+                h["symbol"], tw.fmt_price(h["price"], h["symbol"]), h["range_pct"], h["range_last_pct"],
+                lots(h["volume"]), tw.twd(h["lot_twd"]), h["name"]))
+    else:
+        print("沒有符合條件的股票。")
+    line = disposition_line(held, a.keep_disposition, _names(hits))
+    for n in (line, disp_note):
+        if n:
+            print(n)
+    if not a.no_write:
+        print("已寫入 %s（mode daytrade，%d 檔）。" % (a.out, len(hits)))
+    print("波動大代表賺賠都快：每股風險大，trader-budget 依單筆最大虧損算出的張數會少，甚至一張都不行。"
+          "現股當沖的資格（處置、全額交割、暫停先賣後買）由 trader-risk 檢查。")
+    print(NOTE + "下一步：盤中用 entry.py watchlist --source mis --watchlist 這個檔，或 /trader-news 代號。")
+    return 0 if hits else 1
+
+
 def cmd_orb(a):
     t0 = time.time()
     now = parse_now(a.now)
@@ -1336,12 +1541,19 @@ def main(argv=None):
                    help="第二階段最多抓幾張 v8 圖，成交金額大的先（%d；0 = 全部）" % MAX_CONFIRM)
     p.add_argument("--at", help="把時間切在這個台北時間，HH:MM")
     p.add_argument("--until", help="HH:MM 之後不再新進場（預設：config 的 no_entries_after，13:00）")
+    p = sub.add_parser("daytrade", help="開盤前找適合當沖的股票：最近 %d 天波動大、成交熱" % DT_DAYS)
+    common(p, 10.0, 5000000)
+    p.add_argument("--min-range", type=float, default=5.0, help="平均日內高低差（%%，預設 5）")
+    p.add_argument("--max-price", type=float, help="股價上限（預設：config 的 max_order_twd / 1,000）")
+    p.add_argument("--max-confirm", type=int, default=DT_MAX_CONFIRM,
+                   help="第二階段最多抓幾張日 K（%d；0 = 全部）" % DT_MAX_CONFIRM)
+    p.add_argument("--top", type=int, default=20, help="最多列幾檔（預設 20）")
     a = ap.parse_args(argv)
     if not a.cmd:
         ap.print_help()
         return 1
     try:
-        return {"universe": cmd_universe, "daily": cmd_daily, "orb": cmd_orb}[a.cmd](a)
+        return {"universe": cmd_universe, "daily": cmd_daily, "orb": cmd_orb, "daytrade": cmd_daytrade}[a.cmd](a)
     except ScanError as e:
         print("scan.py：%s" % e, file=sys.stderr)
         return 1

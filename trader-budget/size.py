@@ -310,6 +310,10 @@ def size_trade(plan, cfg, budget=None, limit=None, price=None, cash=None, today=
     else:
         ref, ref_from = tw.dec(entry_plan), "plan"
     stop_d, target_d = tw.dec(stop), tw.dec(target)
+    if ref_from != "limit" and price is not None and tw.dec(price) <= stop_d:
+        # 2026-11-04 11:46: 7780 at 14.75 under its 14.90 stop was sized from the 15.05 plan entry
+        raise SizeError("最新價 %s 已經跌到停損 %s：計畫失效，進場就在停損下面。跳過這筆，或用 trader-exit 依現在的價格重新規劃"
+                        % (_p(price, code), _p(stop_d, code)))
     if stop_d >= ref:
         raise SizeError("停損 %s 不在進場價 %s 下方：做多的停損要在下面" % (_p(stop_d, code), _p(ref, code)))
     if target_d <= ref:

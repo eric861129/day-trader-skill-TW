@@ -649,10 +649,11 @@ def parse_mis(payload):
     """TWSE MIS getStockInfo JSON -> {code: {name, market, last, prev_close, limit_up, limit_down,
     open, high, low, volume_lots, bid, ask, trial, trade_price, trade_time, date, time}}. A field
     the quote does not carry is None. trial is the pre-open trial match price (試撮, pz) that MIS
-    shows from 08:30 until the open. In the session last is often None for a stock that traded (z
-    is "-" in a snapshot without a trade: 3665 at 09:39 to 09:41 on 2026-11-03); bid and ask are
-    the best prices then, and trade_price / trade_time are the last trade all the same (the
-    "trade" object: 3665 traded 1665 at 09:38:32). open, high and low are the day's so far."""
+    shows from 08:30 until the open. In the session last is usually None: MIS shows a trade's
+    price (z) in only some snapshots (32 of 402 at 09:20 on 2026-11-04); bid and ask are the
+    best prices then. trade_price / trade_time are the last price it showed (the "trade"
+    object), and trades without a shown price may follow it: 台積電's stayed at 09:17:25 while
+    its volume grew 113 lots. open, high, low and volume_lots are the day's so far."""
     if isinstance(payload, (str, bytes)):
         payload = json.loads(payload)
     out = {}

@@ -225,6 +225,14 @@ class Orders(unittest.TestCase):
         lower = sized(price=109.5)
         self.assertEqual((lower["entry"], lower["entry_from"], lower["units"]), (110.0, "plan", 1))
 
+    def test_a_fresh_price_at_the_stop_is_refused(self):
+        # 2026-11-04 11:46: 7780 bid 14.75 under its 14.90 stop was sized from the 15.05 entry
+        for p in (108.5, 108.0):
+            with self.assertRaises(size.SizeError) as e:
+                sized(price=p)
+            self.assertIn("已經跌到停損 108.5：計畫失效", str(e.exception))
+        self.assertEqual(sized(price=109.0)["entry_from"], "plan")              # above the stop: as before
+
     def test_prices_file_is_used_only_when_fresh(self):
         with tempfile.TemporaryDirectory() as d:
             pp = os.path.join(d, "prices.json")

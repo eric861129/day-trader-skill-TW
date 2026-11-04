@@ -19,6 +19,7 @@ SPARK5 = os.path.join(SDIR, "spark-5m-2026-11-02.json.gz")    # the same 240 as 
 DAILY = os.path.join(SDIR, "daily-spark-2026-11-02.json.gz")  # 3 months of daily closes for the 240, spark
 ISIN = os.path.join(SDIR, "isin")                             # excerpts of the real ISIN pages of 2026-11-02
 UNIVERSE = os.path.join(SDIR, "universe-2026-11-02.txt")      # the full pages through the same rule
+DAYV8 = os.path.join(SDIR, "daily-v8-2026-11-04.json.gz")    # 3 months of real daily v8 charts, 10 stocks, 2026-11-04 14:15
 TWFIX = os.path.join(FIX, "twmarket")
 DT = datetime.datetime
 D = datetime.date
@@ -473,6 +474,86 @@ class Orb(unittest.TestCase):
         day, cut = scan.orb_window(scan.parse_now("2027-03-01 09:45"), None, 15, datetime.time(13, 0))
         self.assertEqual(day, D(2027, 3, 1))
         self.assertIn("2027", tw.Calendar().unknown_note(day))
+
+
+class Daytrade(unittest.TestCase):
+    """富喬 1815 on 2026-11-04: 127 to 143.5 in a day on 200,000 lots, and no daily setup listed it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data, cls.errors = scan.load_offline(DAYV8)
+        cls.syms = sorted(cls.data)
+
+    def scan(self, now="2026-11-04 08:40", **kw):
+        args = dict(min_price=10.0, min_volume=5000000, min_range=5.0, max_price=250.0)
+        args.update(kw)
+        return scan.scan_daytrade(self.data, self.syms, scan.parse_now(now), args["min_price"], args["min_volume"],
+                                  args["min_range"], args["max_price"], kw.get("confirm"), kw.get("max_confirm"),
+                                  kw.get("top"))
+
+    def test_the_stats_of_a_day(self):
+        st = scan.daytrade_stats(self.data["1815.TWO"], scan.parse_now("2026-11-04 14:00"))
+        self.assertEqual((st["close"], st["close_date"], st["days"]), (135.0, D(2026, 11, 4), 10))
+        self.assertAlmostEqual(st["range_last_pct"], 100 * (143.5 - 127.0) / 131.0, places=6)
+        self.assertEqual(round(st["range_pct"], 2), 9.43)
+        # before the close the day is not complete: the numbers end with 2026-11-03
+        st = scan.daytrade_stats(self.data["1815.TWO"], scan.parse_now("2026-11-04 13:00"))
+        self.assertEqual((st["close"], st["close_date"]), (131.0, D(2026, 11, 3)))
+
+    def test_fuqiao_before_the_open(self):
+        hits, counts, failed = self.scan()
+        self.assertEqual([h["symbol"] for h in hits], ["1815"])
+        h = hits[0]
+        self.assertEqual((h["setups"], h["price"], h["range_pct"], h["range_last_pct"], h["lot_twd"]),
+                         (["daytrade"], 131.0, 9.45, 6.83, 131000))
+        self.assertEqual((counts["pricey"], counts["quiet"], counts["passed"], failed), (3, 1, 1, {}))
+
+    def test_the_thresholds(self):
+        hits, counts, _ = self.scan(min_range=3.0, min_volume=1000000, now="2026-11-04 14:00")
+        self.assertEqual([h["symbol"] for h in hits], ["1815", "2303", "4533", "3379"])   # range x turnover
+        self.assertEqual(self.scan(min_range=3.0, min_volume=1000000, now="2026-11-04 14:00", top=2)[0][1]["symbol"],
+                         "2303")
+        hits, counts, _ = self.scan(max_price=None)
+        self.assertEqual(counts["pricey"], 0)                 # no cap: 2330, 3665 and 6488 are looked at
+
+    def test_stage_two_reads_the_daily_charts(self):
+        closes_only = {k: dict(v, h=None, l=None, o=None, v=None) for k, v in self.data.items()}
+        asked = []
+
+        def confirm(sym):
+            asked.append(sym)
+            if sym == "2303.TW":
+                raise scan.ScanError("Yahoo 沒有回應")
+            return self.data[sym]
+        hits, counts, failed = scan.scan_daytrade(closes_only, self.syms, scan.parse_now("2026-11-04 14:00"), 10.0,
+                                                  1000000, 3.0, 250.0, confirm, 3)
+        self.assertEqual(len(asked), 3)
+        self.assertEqual(counts["unconfirmed"], counts["candidates"] - 3)
+        self.assertEqual(failed, {"2303.TW": "Yahoo 沒有回應"})
+        self.assertIn("1815", [h["symbol"] for h in hits])
+        _, _, failed = scan.scan_daytrade(closes_only, ["1815.TWO"], scan.parse_now("2026-11-04 14:00"), 10.0,
+                                          1000000, 3.0, 250.0)
+        self.assertEqual(failed, {"1815.TWO": "日 K 少了最高、最低或成交量"})
+
+    def test_the_command(self):
+        d = tempfile.mkdtemp()
+        try:
+            out = os.path.join(d, "dt.json")
+            code, text, _ = run(["daytrade", "--offline", DAYV8, "--now", "2026-11-04 08:40", "--out", out,
+                                 "--config", os.path.join(d, "none.json"), "--max-price", "250"])
+            self.assertEqual(code, 0, text)
+            self.assertIn("當沖候選掃描，2026-11-04（三）08:40", text)
+            self.assertIn("1815", text)
+            self.assertIn("3 檔股價超過 250 元", text)
+            with open(out, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            self.assertEqual((doc["mode"], doc["for_session"], doc["as_of"], doc["hits"][0]["symbol"]),
+                             ("daytrade", "2026-11-04", "2026-11-03 收盤", "1815"))
+            code, _, _ = run(["daytrade", "--offline", DAYV8, "--now", "2026-11-04 08:40", "--no-write",
+                              "--config", os.path.join(d, "none.json"), "--min-range", "20"])
+            self.assertEqual(code, 1)
+        finally:
+            shutil.rmtree(d)
 
 
 class Disposition(unittest.TestCase):

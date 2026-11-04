@@ -227,6 +227,13 @@ class Costs(unittest.TestCase):
         self.assertEqual(doc["mc"]["break_even"], 0.5)
         self.assertEqual(doc["verdict"], "偏向停損：先到停利 43.0% 對先到停損 56.5%。")
 
+    def test_the_tax_in_words(self):
+        doc = machine(replays=200)
+        line = lambda code: [x for x in tm.report(dict(doc, plan=dict(doc["plan"], symbol=code))) if x.startswith("成本")][0]
+        self.assertIn("（手續費買賣各一次，加當沖證交稅）", line("2303"))
+        self.assertIn("（手續費買賣各一次，加 ETF 證交稅）", line("00632R"))
+        self.assertIn("（手續費買賣各一次，債券 ETF 免證交稅）", line("00931B"))
+
     def test_the_same_odds_need_more_with_costs(self):
         mc = {"p_target": 0.30, "p_stop": 0.26, "r_at_target": 1.0, "cost_r": 0.32}
         self.assertEqual(tm.verdict(mc), "偏向停損：1R 加上成本 0.32R 時，碰到停利或停損的重播裡，停利要先到 66% "
@@ -254,8 +261,16 @@ class Limits(unittest.TestCase):
         self.assertEqual(doc["mc"]["p_stop"], 0.0)
         self.assertIn("停損 108.5 低於跌停 109.0：重播碰不到，跌停鎖住時也賣不掉", doc["warnings"])
 
+    def test_mis_had_no_limits(self):
+        # 2026-11-04: MIS gave 00931B (US Treasuries) no limits and the replay was clamped to 10 % anyway
+        doc = machine(plan(limit_up=None, limit_down=None, limits_source="mis"), replays=200)
+        self.assertEqual((doc["mc"]["limit_up"], doc["mc"]["limit_down"], doc["mc"]["limits_source"]),
+                         (None, None, "mis"))
+        self.assertIn("MIS 沒有給漲跌停價（國外成分 ETF 沒有漲跌幅限制）：重播沒有夾在漲跌停之間", doc["warnings"])
+        self.assertNotIn("每一根重播都夾在", "\n".join(tm.report(doc)))
+
     def test_limits_from_the_plans_prev_close(self):
-        doc = machine(plan(limit_up=None, limit_down=None), replays=200)
+        doc = machine(plan(limit_up=None, limit_down=None, limits_source=None), replays=200)
         self.assertEqual((doc["mc"]["limit_up"], doc["mc"]["limit_down"], doc["mc"]["limits_source"]),
                          (122.5, 100.5, "computed"))
         self.assertIn("plan 沒有漲跌停：用plan 的昨收 111.5 算出 122.5 / 100.5", doc["warnings"])
@@ -453,6 +468,18 @@ class Plans(unittest.TestCase):
         with self.assertRaises(tm.TMError) as cm:      # 09:25 has not closed in this data yet
             machine(plan(entry_time="09:30", entry_bar=None))
         self.assertIn("沒有進場那根 K 棒", str(cm.exception))
+
+    def test_an_entry_from_mis_before_yahoo_shows_it(self):
+        # trader-entry --source mis triggers 20 minutes before Yahoo has the bar (7780 on 2026-11-04);
+        # the replay only draws from past sessions, so it runs once the bar has closed by the clock
+        text = edited(lambda r: keep_bars(r, lambda ts: tpe(ts).strftime("%Y-%m-%d %H:%M") < "2026-11-02 09:15"))
+        doc = machine(text=text, replays=200)
+        self.assertEqual(doc["mc"]["pool_sessions"], 58)
+        self.assertEqual(doc["mc"]["p_target"], machine(replays=200)["mc"]["p_target"])
+        self.assertIn("Yahoo 還沒有進場那根 K 棒（09:20 收盤；盤中延遲約 20 分鐘，資料只到 09:10 那根）", doc["warnings"][0])
+        with self.assertRaises(tm.TMError) as cm:        # 09:17: the bar has not closed yet
+            machine(text=text, now=tm.parse_now("2026-11-02 09:17"))
+        self.assertIn("資料只到 09:10 那根", str(cm.exception))
 
     def test_plan_checks(self):
         cases = [

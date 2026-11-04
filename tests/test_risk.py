@@ -322,6 +322,16 @@ class StopsAndPrices(unittest.TestCase):
         self.assertIn("2303 最新價 110.5 高於計畫進場價 110.0：風險從 110.5 算", r["info"][0])
         self.assertEqual(r["info"][1], "進場 110.5（最新價）、停損 108.5、停利 111.5：每股風險 2.0（4 檔）")
 
+    def test_a_fresh_price_past_the_stop_blocks_the_entry(self):
+        # 2026-11-04 11:46: 7780 at 14.75 under its 14.90 stop passed, risk counted from the 15.05 entry
+        res = run([reel()], now="2026-11-02 09:32", prices={"2303": 108.0}, price_times={"2303": PRICE_TIME})
+        self.assertEqual(verdicts(res), ["BLOCK"])
+        self.assertIn("停損：2303 最新價 108.0 已經跌到停損 108.5：計畫失效", reasons(res))
+        res = run([reel()], now="2026-11-02 09:32", prices={"2303": 109.0}, price_times={"2303": PRICE_TIME})
+        self.assertEqual(verdicts(res), ["PASS"])
+        res = run([reel()], now="2026-11-02 09:50", prices={"2303": 108.0}, price_times={"2303": PRICE_TIME})
+        self.assertEqual(verdicts(res), ["PASS"])                               # stale: not used
+
     def test_a_stale_or_future_price_is_not_used(self):
         for now in ("2026-11-02 09:50", "2026-11-02 09:20"):
             res = run([reel()], now=now, prices={"2303": 110.5}, price_times={"2303": PRICE_TIME})

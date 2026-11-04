@@ -2,14 +2,16 @@
 name: trader-scanner
 description: >-
   看盤掃描器（Chart Scanner）。一次掃上市、上櫃兩千多檔股票和 ETF 的圖，列出符合規則的型態：
-  開盤區間突破、多頭旗形、收盤創 20 日新高、站回 20 日均線、超賣與超賣反彈。從證交所的 ISIN
+  開盤區間突破、多頭旗形、收盤創 20 日新高、站回 20 日均線、超賣與超賣反彈，以及適合當沖的
+  股票（最近 10 天波動大、成交熱）。從證交所的 ISIN
   清單建立上市、上櫃股票、創新板與 ETF 的代號清單（順便更新證交所休市日），開盤前用日收盤價
   掃型態，盤中用 5 分 K 掃開盤區間突破，處置股預設排除，寫出 trader/watchlist.json 給
   trader-news 和 trader-entry。Yahoo 免費資料，一根一根 K 棒看。使用時機：使用者說「幫我掃盤」
-  「找型態」「今天有什麼在突破」「開盤區間突破」「掃多頭旗形」「超賣股」「盤前掃描」「建立觀察
+  「找型態」「今天有什麼在突破」「開盤區間突破」「掃多頭旗形」「超賣股」「盤前掃描」「當沖標的」
+  「適合當沖的股票」「建立觀察
   清單」「今天該看什麼」、"scan the market"、"opening range breakouts"，或交易日一開始、
   在 /trader-news 之前。
-argument-hint: "[universe | daily | orb] [--at HH:MM]"
+argument-hint: "[universe | daily | daytrade | orb] [--at HH:MM]"
 ---
 
 # trader-scanner
@@ -24,6 +26,7 @@ argument-hint: "[universe | daily | orb] [--at HH:MM]"
 python3 "${CLAUDE_SKILL_DIR}/scan.py" universe                        # -> trader/universe.txt，並更新休市日
 python3 "${CLAUDE_SKILL_DIR}/scan.py" daily                           # 開盤前 -> trader/watchlist.json
 python3 "${CLAUDE_SKILL_DIR}/scan.py" daily --symbols 2330,2303,6488  # 或 --watchlist 檔案、--limit 200、--kind ETF
+python3 "${CLAUDE_SKILL_DIR}/scan.py" daytrade --out trader/state/watchlist-daytrade.json   # 開盤前：適合當沖的股票
 python3 "${CLAUDE_SKILL_DIR}/scan.py" orb                             # 09:40 之後 -> trader/watchlist.json
 python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --at 09:45                  # 時間切在台北時間 09:45
 python3 "${CLAUDE_SKILL_DIR}/scan.py" orb --watchlist trader/watchlist.json --json
@@ -79,6 +82,29 @@ Yahoo 的 spark 一次回 20 檔的收盤價，所以 2,350 檔要 118 次請求
 
 收盤創新高比盤中創新高容易出現。結果按成交金額（收盤價乘成交量）大的排前面。
 
+## 當沖候選（開盤前）
+
+`scan.py daily` 找的是日線的型態，不管一檔股票適不適合當沖。2026-11-04 富喬 1815 一天從 127 到
+143.5（12.6%）、成交約 20 萬張，最近 10 天天天震盪 7% 到 15%，但四種型態都不符合，就沒進觀察清單。
+`scan.py daytrade` 補這一塊，只看「當天走得夠遠、量夠大、一張買得起」：
+
+1. 第一階段，每一檔：spark 的日收盤價（同 daily）。最後收盤在 `--min-price`（10 元）到 `--max-price`
+   之間（預設是設定檔的 `max_order_twd` 除以 1,000：一張要在單筆金額上限內）、最後一天成交量至少
+   `--min-volume` 的一半、最近 10 天平均每天收盤漲跌 1.5% 以上，列為候選。照「漲跌 x 成交金額」排，
+   最多 `--max-confirm`（150）檔進第二階段。
+2. 第二階段：抓有最高、最低和成交量的 v8 日 K，一檔一次請求。最近 10 個完整交易日的平均日內高低差
+   （最高減最低，除以前一天收盤）至少 `--min-range`（5%），平均成交量至少 `--min-volume`（預設
+   5,000,000 股，也就是 5,000 張），才算符合。照「平均高低差 x 平均成交金額」排，列前 `--top`（20）檔。
+
+輸出每一檔的收盤、平均高低差、最近一天的高低差、平均成交量和一張的金額。寫到 `--out`
+（預設 `trader/watchlist.json`，會蓋掉 daily 的清單；要兩份都留就給 `--out` 另一個檔名）。盤中用
+`entry.py watchlist --source mis --watchlist 這個檔` 或 `mis_loop` 盯。
+
+波動大代表賺賠都快：每股風險大，trader-budget 依單筆最大虧損算出的張數會少，甚至一張都不行
+（富喬 11/4 的開盤區間突破，停損放區間中點，每股風險 7 元，一張停損就虧 NT$7,000 以上）。
+這是使用者的設定，不要替使用者調高。現股當沖的資格（處置股、全額交割、暫停先賣後買）由
+trader-risk 檢查；處置股在這裡也預設排除。
+
 ## 開盤區間突破（盤中）
 
 開盤區間是開盤後的前 `--or-minutes`（15）分鐘：09:00、09:05、09:10 三根 5 分 K。突破是開盤區間
@@ -117,7 +143,7 @@ K 棒丟掉，不在 5 分鐘格線上的 K 棒（盤中的即時跳動）丟掉
   大約 09:40 才看得到；09:40 之前跑會說「這不是沒有突破」，不會說沒有圖突破。突破的時間是 K 棒收完的
   時間，離現在大約 20 分鐘，現價要看 MIS（`/trader-alerts` 的 `quote`）。要在 09:20 就知道突破，
   不要等掃描：對 `daily` 的觀察清單跑 `/trader-entry` 的 `entry.py watchlist --source mis`（證交所 MIS
-  盤中快照，只差幾秒，一次問完整份清單），或對一檔跑 `entry.py watch 代號 --source mis`。
+  盤中快照，通常只差幾秒，一次問完整份清單），或對一檔跑 `entry.py watch 代號 --source mis`。
 - Yahoo 的 spark 會省略剛好落在前後兩點連線上的收盤價（例如 108.0、108.5、109.0 的中間那個，
   或一段一樣的收盤價）。台股升降單位粗，這很常見：2026-11-02 那 240 檔在 09:00 到 13:20 之間被省略
   了 1,885 根 5 分 K，3 個月的日 K 有 119 檔少了 1 到 7 天。工具會按時間內插補回，對齊升降單位，
@@ -134,6 +160,8 @@ K 棒丟掉，不在 5 分鐘格線上的 K 棒（盤中的即時跳動）丟掉
 
 1. 大約一週一次：`scan.py universe`。
 2. 開盤前：`scan.py daily`。跟使用者說數量（抓到、通過流動性、掃描、符合），每種型態挑前幾檔講。
+   要做當沖，再跑 `scan.py daytrade --out trader/state/watchlist-daytrade.json`，說前幾檔的平均高低差、
+   成交量和一張的金額。
 3. 09:40 之後（09:45 是常用的時間點；Yahoo 延遲約 20 分鐘）：`scan.py orb`。說有幾張可用的圖突破了
    開盤區間、什麼時候突破，也說越晚突破的離現在的價格越近。說出資料延遲幾分鐘、哪些處置股被排除。
 4. 使用者自己挑一張圖。交下去：`/trader-news 代號`（什麼消息在推它），然後 `/trader-entry 代號`
