@@ -1,66 +1,71 @@
 #!/usr/bin/env python3
-"""Time Machine for trader-timemachine. Standard library only.
+"""Time Machine for trader-timemachine, Taiwan market. Standard library only.
 
 Replays a planned day trade before you risk a dollar: 10,000 simulated runs of
 the rest of the session from your entry, plus the same rule on every past
-session in the data.
+session in the data, both net of the round-trip cost.
 
     python3 timemachine.py run                          # trader/plan.json, 10,000 replays, seed 19
     python3 timemachine.py run --write                  # also save trader/timemachine.json
-    python3 timemachine.py run --until 15:55            # stop each replay at your flat-by time
+    python3 timemachine.py run --until 13:20            # stop each replay at your flat-by time
     python3 timemachine.py run --seed 7 --replays 20000 --json
-    python3 timemachine.py run --symbol TSLA --date 2026-10-19 --entry 364.18 \\
-        --stop 358.32 --target 370.04 --entry-time "10:15 AM"
+    python3 timemachine.py run --symbol 2303 --date 2026-11-02 --entry 110 \\
+        --stop 108.5 --target 111.5 --entry-time 09:20
     python3 timemachine.py chart                        # ASCII fan chart of the replays
     python3 timemachine.py chart --from trader/timemachine.json
 
-How the replays work (the reel's sim.py, same algorithm, same random draws):
+How the replays work (same algorithm and the same random draws as the original):
   1. Fetch 60 days of 5-minute bars (Yahoo v8 chart, range=60d interval=5m;
-     one request). Keep only FULL sessions before the plan's date: 78 bars,
-     9:30 to 4:00 New York time. Half days, gaps and today are left out.
-  2. The pool: for every bar slot 1..77 of the day, each past session's bar as
+     one request, .TW for TWSE, .TWO for TPEx). Keep only FULL sessions before
+     the plan's date: all 53 bars of continuous trading, 09:00 to 13:20 bar
+     starts, Taipei time. Yahoo leaves the 13:25 closing-auction bar empty and
+     adds a 13:30 print of the close only on the current day: both are left out,
+     so the auction is not modelled. Short sessions and today are left out.
+  2. The pool: for every bar slot 1..52 of the day, each past session's bar as
      ratios to the previous bar's close: (open, high, low, close) / prev close.
   3. One replay starts at the entry price and walks the rest of the session.
      For each bar i it picks a slot j = i + randint(-window, window), kept in
-     1..77, then one past bar from pool[j] (random.choice), and scales it to
-     the current price. The stop is checked before the target in every bar,
-     so a bar that touches both counts as the stop (the conservative call).
+     1..52, then one past bar from pool[j] (random.choice), and scales it to
+     the current price. The high, low and close are clamped into the day's
+     limit-down to limit-up range (10 % around the reference price; the plan's
+     limits, else computed from its prev_close). The stop is checked before the
+     target in every bar, so a bar that touches both counts as the stop.
   4. Outcomes: "target" or "stop" (whichever was touched first), or "neither"
-     when the trade is still open at --until (default 16:00, the close, or
-     13:00 on an NYSE early-close day).
-     "green" = target first, or above the entry at --until (below for a sell).
-     R = the target's R at the target, -1 at the stop, otherwise
-     (price at --until - entry) / risk. A gap through the stop still counts
-     -1R here; a real fill can be worse.
+     when the trade is still open at --until (default 13:25, the end of
+     continuous trading). "green" = target first, or above the entry at --until
+     (below for a sell). R = the target's R at the target, -1 at the stop,
+     otherwise (price at --until - entry) / risk. Net R = R minus the cost in R
+     (fee twice plus the day-trade tax, over the risk a share).
   5. The price at --until: median and the 5th to 95th percentile of all
      replays (pct(a, q) = sorted a at index int(q * n)). The fan chart uses a
      second run of 2,000 paths with the same seed. The histogram has 24 bins
      between the 1st and 99th percentile.
   6. History: the plan's own rule (an opening-range breakout with the same
-     opening range, stop rule and target R) re-run on every one of those past
-     full sessions, first close beyond the range = entry, same stop-first rule.
+     opening range, stop rule and target R, every price on the tick grid) re-run
+     on every one of those past full sessions, net of costs too.
 
 The verdict line looks at the replays that hit one side (target or stop) and
 compares the target's share of them, target / (target + stop), with the share
-that breaks even at the plan's target R: 1 / (1 + R), so 50 % at 1R and 33 % at
-2R. The gap, in percentage points:
-  less than 5 points    "Close to a coin flip" (1R) / "Close to break-even" (other R)
-  5 to 15 points        "Leans toward the target" / "Leans toward the stop"
-  15 points or more     "Strongly toward the target" / "Strongly toward the stop"
+that breaks even at the plan's target R k and cost c (in R): (1 + c) / (1 + k),
+so 50 % at 1R with no cost, 66 % at 1R with a 0.32R cost. The gap, in points:
+  less than 5 points    接近擲硬幣 (1R, no cost) / 接近損益兩平 (otherwise)
+  5 to 15 points        偏向停利 / 偏向停損
+  15 points or more     明顯偏向停利 / 明顯偏向停損
 Below it: a note when more than 40 % of the replays hit neither (the price at
---until decides those), and the average R when its sign goes against the lean.
+--until decides those), and the net average R when its sign goes against the lean.
 
 5-minute bars only: Yahoo keeps 60 days of 5-min bars but only about 7 days of
 1-min bars, too few sessions for a fair pool. The run refuses with a plain
 message when there are fewer than 20 full sessions or the entry bar is not in
 the data. Same plan, same data and same --seed give the same numbers on any
 machine. A simulation built from the stock's own recent bars is not a
-prediction: earnings, news and halts can do what the last 60 days never did.
+prediction: news, a disposition (處置) or a limit lock can do what the last
+60 days never did.
 
-Data: https://query2.finance.yahoo.com/v8/finance/chart/<T>?range=60d&interval=5m
+Data: https://query2.finance.yahoo.com/v8/finance/chart/<CODE>.TW?range=60d&interval=5m
 (unofficial and free, can lag; falls back to query1 on 429 or 5xx).
 --offline FILE reads a saved chart JSON (.json or .json.gz) instead.
-Times are New York (ET) wall-clock; --now "2026-10-19 10:15" pins the clock.
+Times are Taipei wall-clock; --now "2026-11-02 09:25" pins the clock.
 """
 
 import argparse
@@ -78,14 +83,17 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-UA = "Mozilla/5.0 (compatible; day-trader-skill/2.0; +https://github.com/Jakeschincariol/day-trader-skill)"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import twmarket as tw  # noqa: E402
+
+UA = tw.UA
 PAUSE = 0.5          # seconds between requests: be polite to free endpoints
 BACKOFF = 5.0        # seconds to wait once after a 429
 HOSTS = ("query2", "query1")
 INTERVAL = 300       # 5-minute bars, in seconds
-SESSION_BARS = 78    # 9:30 to 16:00 in 5-minute bars
-OPEN_MIN = 9 * 60 + 30
-CLOSE_MIN = 16 * 60
+SESSION_BARS = tw.BARS_5M                                  # 53: 09:00 to 13:20 bar starts
+OPEN_MIN = tw.OPEN.hour * 60 + tw.OPEN.minute              # 09:00
+END_MIN = tw.CLOSING_AUCTION.hour * 60 + tw.CLOSING_AUCTION.minute   # 13:25, continuous trading ends
 MIN_SESSIONS = 20
 SAMPLE_PATHS = 160
 BAND_PATHS = 2000
@@ -95,62 +103,24 @@ COIN_FLIP = 0.05     # verdict thresholds, see the docstring
 STRONG = 0.15
 MANY_NEITHER = 0.40
 EPOCH = datetime.datetime(1970, 1, 1)
-WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-NYSE_EARLY_CLOSE = {  # 1:00 p.m. ET, from https://www.nyse.com/markets/hours-calendars (read 2026-10-13)
-    "2026-11-27": "day after Thanksgiving",
-    "2026-12-24": "Christmas Eve",
-    "2027-11-26": "day after Thanksgiving",
-}
-EARLY_MIN = 13 * 60
+STOP_WORDS = {"or_mid": "開盤區間中點", "or_low": "開盤區間低點", "or_high": "開盤區間高點"}
 
 
 class TMError(Exception):
     pass
 
 
-# ---------------------------------------------------------------- time (copied from trader-alerts)
-
-def _nth_sunday(year, month, n):
-    d = datetime.date(year, month, 1)
-    d += datetime.timedelta(days=(6 - d.weekday()) % 7)
-    return d + datetime.timedelta(weeks=n - 1)
+class NoChart(TMError):
+    """Yahoo has no chart for this symbol (HTTP 404): the market suffix may be the wrong one."""
 
 
-def eastern_offset(utc):
-    """Hours from UTC for New York: -4 in daylight time, -5 otherwise.
-    DST runs from 2:00 a.m. on the second Sunday of March to 2:00 a.m. on the
-    first Sunday of November (US rule since 2007)."""
-    y = utc.year
-    start = datetime.datetime.combine(_nth_sunday(y, 3, 2), datetime.time(7, 0))   # 2:00 EST
-    end = datetime.datetime.combine(_nth_sunday(y, 11, 1), datetime.time(6, 0))    # 2:00 EDT
-    naive = utc.replace(tzinfo=None)
-    return -4 if start <= naive < end else -5
-
-
-def to_eastern(utc):
-    return utc.replace(tzinfo=None) + datetime.timedelta(hours=eastern_offset(utc))
-
-
-def eastern_to_utc(local):
-    for off in (-4, -5):
-        utc = local - datetime.timedelta(hours=off)
-        if eastern_offset(utc) == off:
-            return utc
-    return local + datetime.timedelta(hours=5)
-
+# ---------------------------------------------------------------- time
 
 def parse_now(text):
-    """ISO time -> naive UTC. A time without an offset is taken as New York time."""
-    if not text:
-        return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0, tzinfo=None)
-    t = text.strip().replace("Z", "+00:00")
     try:
-        dt = datetime.datetime.fromisoformat(t)
-    except ValueError:
-        raise TMError("--now wants a time like \"2026-10-19 10:15\" (New York) or ...Z (UTC)")
-    if dt.tzinfo is None:
-        return eastern_to_utc(dt)
-    return (dt - dt.utcoffset()).replace(tzinfo=None)
+        return tw.parse_now(text)
+    except ValueError as e:
+        raise TMError(str(e))
 
 
 def utc_of(ts):
@@ -158,25 +128,20 @@ def utc_of(ts):
 
 
 def parse_clock(text, what):
-    """'10:15 AM', '10:15am', '15:55' or '3:55' (a bare 1 to 8 o'clock means p.m.) -> minutes after midnight."""
+    """'09:20', '9:20', '13:20' or '1:20 PM' (a bare 1 to 5 o'clock means p.m.) -> minutes after midnight."""
     m = re.match(r"^\s*(\d{1,2}):(\d{2})\s*(?:([AaPp])\.?\s*[Mm]\.?)?\s*$", str(text or ""))
     if not m:
-        raise TMError("%s wants a New York time like 10:15 AM or 15:55, not %r" % (what, text))
+        raise TMError("%s 要像 09:20 或 13:20 這樣的台北時間，不是 %r" % (what, text))
     h, mi, ap = int(m.group(1)), int(m.group(2)), (m.group(3) or "").lower()
     if mi > 59 or h > 23 or (ap and not 1 <= h <= 12):
-        raise TMError("%s %r is not a clock time" % (what, text))
+        raise TMError("%s %r 不是時間" % (what, text))
     if ap == "p" and h != 12:
         h += 12
     elif ap == "a" and h == 12:
         h = 0
-    elif not ap and 1 <= h <= 8:
+    elif not ap and 1 <= h <= 5:
         h += 12
     return h * 60 + mi
-
-
-def clock12(minutes):
-    h, m = divmod(minutes, 60)
-    return "%d:%02d %s" % (h % 12 or 12, m, "AM" if h < 12 else "PM")
 
 
 def clock24(minutes):
@@ -185,9 +150,9 @@ def clock24(minutes):
 
 # ---------------------------------------------------------------- data
 
-def chart_url(sym, host="query2"):
+def chart_url(ysym, host="query2"):
     return "https://%s.finance.yahoo.com/v8/finance/chart/%s?range=60d&interval=5m" % (
-        host, urllib.parse.quote(sym.upper().replace(".", "-")))
+        host, urllib.parse.quote(ysym.upper()))
 
 
 def _sleep(seconds):
@@ -196,11 +161,11 @@ def _sleep(seconds):
 
 def _get(url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with tw.urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8", "replace")
 
 
-def fetch_chart(sym):
+def fetch_chart(ysym):
     """One request for 60 days of 5-min bars. query2 first, one retry after a 429,
     then query1 on 429 or 5xx."""
     last = None
@@ -208,7 +173,7 @@ def fetch_chart(sym):
         if n:
             _sleep(PAUSE)
         for attempt in (0, 1):
-            url = chart_url(sym, host)
+            url = chart_url(ysym, host)
             try:
                 return _get(url)
             except urllib.error.HTTPError as e:
@@ -223,57 +188,68 @@ def fetch_chart(sym):
                 if e.code == 429 or e.code >= 500:
                     break
                 if e.code == 404:
-                    raise TMError("Yahoo has no chart for %s (HTTP 404): check the ticker" % sym.upper())
-                raise TMError("Yahoo answered HTTP %d for %s" % (e.code, sym.upper()))
+                    raise NoChart("Yahoo 沒有 %s 的線圖（HTTP 404）：請確認代號" % ysym.upper())
+                raise TMError("Yahoo 回應 HTTP %d（%s）" % (e.code, ysym.upper()))
             except urllib.error.URLError as e:
-                raise TMError("could not reach Yahoo: %s" % e.reason)
+                raise TMError("連不上 Yahoo：%s" % e.reason)
             except OSError as e:
-                raise TMError("could not reach Yahoo: %s" % e)
+                raise TMError("連不上 Yahoo：%s" % e)
     if last == 429:
-        raise TMError("Yahoo is rate limiting (HTTP 429). Wait a minute and run it again.")
-    raise TMError("Yahoo answered HTTP %s for %s on both hosts. Try again later." % (last, sym.upper()))
+        raise TMError("Yahoo 正在限制請求次數（HTTP 429），等一分鐘再跑一次")
+    raise TMError("Yahoo 兩台主機都回應 HTTP %s（%s），稍後再試" % (last, ysym.upper()))
 
 
-def read_offline(path, sym):
-    """A saved Yahoo chart file (.json or .json.gz), or a folder holding <SYM>-60d5m.json(.gz)."""
+def fetch_for(code, market):
+    """(chart text, market). An unknown market tries .TW first, then .TWO."""
+    if market:
+        return fetch_chart(tw.yahoo_symbol(code, market)), market
+    try:
+        return fetch_chart(tw.yahoo_symbol(code, "TWSE")), "TWSE"
+    except NoChart:
+        _sleep(PAUSE)
+        return fetch_chart(tw.yahoo_symbol(code, "TPEx")), "TPEx"
+
+
+def read_offline(path, code):
+    """A saved Yahoo chart file (.json or .json.gz), or a folder holding <CODE>-60d5m.json(.gz)."""
     if os.path.isdir(path):
-        for name in ("%s-60d5m.json" % sym.upper(), "%s-60d5m.json.gz" % sym.upper()):
+        for name in ("%s-60d5m.json" % code, "%s-60d5m.json.gz" % code):
             if os.path.exists(os.path.join(path, name)):
                 path = os.path.join(path, name)
                 break
         else:
-            raise TMError("no %s-60d5m.json(.gz) in %s" % (sym.upper(), path))
+            raise TMError("%s 裡沒有 %s-60d5m.json(.gz)" % (path, code))
     if not os.path.exists(path):
-        raise TMError("no offline chart file %s" % path)
+        raise TMError("找不到離線線圖檔 %s" % path)
     opener = gzip.open if path.endswith(".gz") else open
     try:
         with opener(path, "rt", encoding="utf-8") as fh:
             return fh.read()
     except OSError as e:
-        raise TMError("could not read %s: %s" % (path, e))
+        raise TMError("讀不到 %s：%s" % (path, e))
 
 
-def chart_result(text, sym):
+def chart_result(text, code):
     try:
         data = json.loads(text)
     except ValueError:
-        raise TMError("Yahoo returned something that is not JSON for %s" % sym.upper())
+        raise TMError("Yahoo 給的 %s 資料不是 JSON" % code)
     chart = data.get("chart") if isinstance(data, dict) else None
     if not isinstance(chart, dict):
-        raise TMError("Yahoo returned something unexpected for %s" % sym.upper())
+        raise TMError("Yahoo 給的 %s 資料格式不對" % code)
     res = chart.get("result")
     if not res:
         err = chart.get("error") or {}
-        raise TMError("Yahoo has no data for %s: %s" % (sym.upper(), err.get("description") or "unknown ticker"))
+        raise TMError("Yahoo 沒有 %s 的資料：%s" % (code, err.get("description") or "未知的代號"))
     return res[0]
 
 
 def parse_bars(result, now_utc):
-    """Yahoo chart result -> (meta, bars, dropped). Regular-session 5-min bars only,
-    oldest first. Dropped: bars with a missing price, bars off the 5-minute grid
-    (the live tick, e.g. 10:49:45), bars not complete yet (now < start + 5 min,
-    where now is the earlier of --now and the data's own regularMarketTime), and
-    bars outside 9:30 to 16:00 New York time."""
+    """Yahoo chart result -> (meta, bars, dropped). 5-min bars of continuous trading only
+    (09:00 to 13:20 starts, Taipei), oldest first. Dropped: bars off the 5-minute grid
+    (the live tick), bars outside continuous trading (the empty 13:25 auction bar and
+    the 13:30 print of the close), bars with a missing price, and bars not complete yet
+    (now < start + 5 min, where now is the earlier of --now and regularMarketTime)."""
     meta = result.get("meta") or {}
     stamps = result.get("timestamp") or []
     q = ((result.get("indicators") or {}).get("quote") or [{}])[0] or {}
@@ -286,7 +262,7 @@ def parse_bars(result, now_utc):
     bars = {}
     for i, ts in enumerate(stamps):
         o, h, l, c, v = [col[i] if i < len(col) else None for col in cols]
-        if ts is None or None in (o, h, l, c):
+        if ts is None:
             dropped["no_price"] += 1
             continue
         ts = int(ts)
@@ -294,10 +270,13 @@ def parse_bars(result, now_utc):
             dropped["off_grid"] += 1
             continue
         start = utc_of(ts)
-        local = to_eastern(start)
+        local = tw.to_taipei(start)
         mins = local.hour * 60 + local.minute - OPEN_MIN
         if mins < 0 or mins >= SESSION_BARS * 5:
             dropped["outside_hours"] += 1
+            continue
+        if None in (o, h, l, c):
+            dropped["no_price"] += 1
             continue
         if start + datetime.timedelta(seconds=INTERVAL) > as_of:
             dropped["not_complete"] += 1
@@ -315,22 +294,79 @@ def split_sessions(bars):
     return days
 
 
-def full_sessions(days, before):
-    """Full sessions (all 78 bars) strictly before the plan's date, oldest first,
-    and the short ones that were left out (half days, gaps)."""
-    full, short = [], []
-    for d in sorted(days):
+def quiet_slots(result):
+    """{date: {slot}}: on-grid 5-minute stamps in continuous trading that Yahoo lists with no
+    price. That is five minutes nobody traded: 4533 協易機 had 1 to 16 of them on most of its last
+    60 trading days (checked 2026-11-03). A stamp that is missing altogether is not one."""
+    out = {}
+    stamps = result.get("timestamp") or []
+    closes = ((((result.get("indicators") or {}).get("quote") or [{}])[0]) or {}).get("close") or []
+    for i, ts in enumerate(stamps):
+        if ts is None or int(ts) % INTERVAL or (i < len(closes) and closes[i] is not None):
+            continue
+        local = tw.to_taipei(utc_of(ts))
+        mins = local.hour * 60 + local.minute - OPEN_MIN
+        if 0 <= mins < SESSION_BARS * 5:
+            out.setdefault(local.date().isoformat(), set()).add(mins // 5)
+    return out
+
+
+def fill_quiet(s, quiet):
+    """A day's {slot: bar} with its quiet slots filled flat at the last close (volume 0), or None
+    when it cannot be: no 09:00 bar, a slot that is missing rather than quiet, or fewer than half
+    of the bars priced (a halt, not a quiet stock)."""
+    if 0 not in s or len(s) < SESSION_BARS // 2 + 1:
+        return None
+    out = dict(s)
+    for k in range(1, SESSION_BARS):
+        if k in out:
+            continue
+        if k not in quiet:
+            return None
+        c = out[k - 1]["c"]
+        out[k] = {"date": out[0]["date"], "slot": k, "start": clock24(OPEN_MIN + 5 * k),
+                  "o": c, "h": c, "l": c, "c": c, "v": 0, "quiet": True}
+    return out
+
+
+def full_sessions(days, before, seen=(), quiet=None):
+    """Full sessions (all 53 bars) strictly before the plan's date, oldest first, the short
+    ones that were left out (gaps, a halt), and how many bars were filled. A day in seen with
+    no priced bar at all (Yahoo keeps an empty day when the market stops trading without
+    notice, like a typhoon day) is a short session with 0 bars. A day whose only holes are
+    quiet slots (see quiet_slots) is filled flat (fill_quiet) and counts as full."""
+    full, short, filled = [], [], {"days": 0, "bars": 0}
+    quiet = quiet or {}
+    for d in sorted(set(days) | set(seen)):
         if d >= before:
             continue
-        s = days[d]
+        s = days.get(d, {})
+        if len(s) < SESSION_BARS and quiet.get(d):
+            done = fill_quiet(s, quiet[d])
+            if done is not None:
+                filled["days"] += 1
+                filled["bars"] += SESSION_BARS - len(s)
+                s = done
         if len(s) == SESSION_BARS:
             full.append((d, [s[i] for i in range(SESSION_BARS)]))
         else:
             short.append({"date": d, "bars": len(s)})
-    return full, short
+    return full, short, filled
 
 
-# ---------------------------------------------------------------- the simulation (sim.py)
+def session_dates(result):
+    """Every Taipei date with an on-grid timestamp inside continuous trading, priced or not."""
+    out = set()
+    for ts in result.get("timestamp") or []:
+        if ts is None or int(ts) % INTERVAL:
+            continue
+        local = tw.to_taipei(utc_of(ts))
+        if 0 <= local.hour * 60 + local.minute - OPEN_MIN < SESSION_BARS * 5:
+            out.add(local.date().isoformat())
+    return out
+
+
+# ---------------------------------------------------------------- the simulation
 
 def build_pool(sessions):
     """pool[i] = every past session's bar i as (o, h, l, c) / bar i-1's close, in date order."""
@@ -346,11 +382,18 @@ def pct(a, q):
     return a[min(len(a) - 1, int(q * len(a)))]
 
 
-def simulate(pool, entry, stop, target, k, last, replays=10000, seed=19, window=2, side="buy"):
-    """Monte Carlo replays of bars k+1..last. Same draws and order as the reel's sim.py."""
+def simulate(pool, entry, stop, target, k, last, replays=10000, seed=19, window=2, side="buy",
+             limit_up=None, limit_down=None, cost_r=0.0):
+    """Monte Carlo replays of bars k+1..last, every price clamped into [limit_down, limit_up].
+    The draws and their order are the original's: a clamp never takes a random number."""
     long = side == "buy"
     risk = (entry - stop) if long else (stop - entry)
     r_target = round(((target - entry) if long else (entry - target)) / risk, 4)
+    cap_hi = limit_up if limit_up else float("inf")
+    cap_lo = limit_down if limit_down else 0.0
+
+    def clamp(x):
+        return cap_hi if x > cap_hi else cap_lo if x < cap_lo else x
 
     def slot(rng, i):
         return i if window == 0 else min(SESSION_BARS - 1, max(1, i + rng.randint(-window, window)))
@@ -358,14 +401,20 @@ def simulate(pool, entry, stop, target, k, last, replays=10000, seed=19, window=
     rng = random.Random(seed)
     choice = rng.choice
     outcomes, closes, paths = [], [], []
+    at_up = at_down = 0
     for n in range(replays):
         p = entry
         outcome = None
+        touched_up = touched_down = False
         keep = n < SAMPLE_PATHS
         path = [entry]
         for i in range(k + 1, last + 1):
             o, h, l, c = choice(pool[slot(rng, i)])
-            hi, lo, cl = p * h, p * l, p * c
+            hi, lo, cl = clamp(p * h), clamp(p * l), clamp(p * c)
+            if hi >= cap_hi:
+                touched_up = True
+            if lo <= cap_lo:
+                touched_down = True
             if outcome is None:
                 if long:
                     if lo <= stop:
@@ -380,6 +429,8 @@ def simulate(pool, entry, stop, target, k, last, replays=10000, seed=19, window=
             p = cl
             if keep:
                 path.append(round(p, 2))
+        at_up += touched_up
+        at_down += touched_down
         outcomes.append(outcome or "close")
         closes.append(p)
         if keep:
@@ -399,7 +450,7 @@ def simulate(pool, entry, stop, target, k, last, replays=10000, seed=19, window=
         path = [entry]
         for i in range(k + 1, last + 1):
             o, h, l, c = choice(pool[slot(rng, i)])
-            p = p * c
+            p = clamp(p * c)
             path.append(p)
         allp.append(path)
     bands = []
@@ -413,59 +464,70 @@ def simulate(pool, entry, stop, target, k, last, replays=10000, seed=19, window=
         b = int((c - lo_) / W) if W > 0 else 0
         if 0 <= b < HIST_BINS:
             bins[b] += 1
+    avg = statistics.mean(Rs)
     return {
         "replays": replays, "seed": seed, "window": window, "bars_left": last - k,
         "p_target": round(cnt["target"] / replays, 4), "p_stop": round(cnt["stop"] / replays, 4),
         "p_neither": round(cnt["close"] / replays, 4), "p_green": round(green / replays, 4),
         "median_close": round(pct(srt, 0.5), 2), "p5_close": round(pct(srt, 0.05), 2),
-        "p95_close": round(pct(srt, 0.95), 2), "avg_R": round(statistics.mean(Rs), 3),
-        "r_at_target": r_target, "band_paths": BAND_PATHS, "bands": bands, "sample_paths": paths,
+        "p95_close": round(pct(srt, 0.95), 2), "avg_R": round(avg, 3),
+        "cost_r": round(cost_r, 4), "avg_R_net": round(avg - cost_r, 3),
+        "r_at_target": r_target, "limit_up": limit_up, "limit_down": limit_down,
+        "p_limit_up": round(at_up / replays, 4), "p_limit_down": round(at_down / replays, 4),
+        "band_paths": BAND_PATHS, "bands": bands, "sample_paths": paths,
         "hist": {"lo": round(lo_, 2), "hi": round(hi_, 2), "bins": bins},
     }
 
 
 # ---------------------------------------------------------------- stop rules and the history replay
 
-def cents_away(x, long):
-    """Round a stop to the cent, away from the entry: down for a buy, up for a sell."""
-    c = round(x * 100, 4)
-    return (math.floor(c) if long else math.ceil(c)) / 100.0
+def snap(x, code, mode="nearest"):
+    """A price onto the tick grid, as a float."""
+    return float(tw.to_tick(round(x, 6), code, mode))
 
 
-def opening_range(D, n):
-    """(high, low) of the first n bars of a session given as {slot: bar} or a list."""
+def tick_away(x, code, long):
+    """A stop onto the tick grid, away from the entry: down for a buy, up for a sell."""
+    return snap(x, code, "down" if long else "up")
+
+
+def opening_range(D, n, code):
+    """(high, low) of the first n bars of a session given as {slot: bar} or a list, on the tick grid."""
     rows = [D[i] for i in range(n)]
-    return max(b["h"] for b in rows), min(b["l"] for b in rows)
+    return snap(max(b["h"] for b in rows), code), snap(min(b["l"] for b in rows), code)
 
 
-def rule_stop(rule, oh, ol, entry, long):
+def rule_stop(rule, oh, ol, entry, long, code):
     r = rule["stop_rule"]
     if r == "or_mid":
-        return cents_away((oh + ol) / 2, long)
+        return tick_away((oh + ol) / 2, code, long)
     if r in ("or_low", "or_high"):
-        return cents_away(ol if long else oh, long)
+        return tick_away(ol if long else oh, code, long)
     frac = rule["stop_pct"] / 100.0
-    return cents_away(entry * (1 - frac) if long else entry * (1 + frac), long)
+    return tick_away(entry * (1 - frac) if long else entry * (1 + frac), code, long)
 
 
-def history_replay(sessions, rule, last, side="buy"):
+def history_replay(sessions, rule, last, side, code, cost_rate):
     """The plan's rule on every past full session: entry = the first bar after the
     opening range to close beyond it (up to the --until bar), then stop first, then
-    target, bar by bar, else the close at --until."""
+    target, bar by bar, else the close at --until. Net R takes off that trade's cost."""
     long = side == "buy"
     n = rule["or_minutes"] // 5
     trades = []
     for d, D in sessions:
-        oh, ol = opening_range(D, n)
-        kk = next((i for i in range(n, last + 1) if (D[i]["c"] > oh if long else D[i]["c"] < ol)), None)
+        oh, ol = opening_range(D, n, code)
+        kk = next((i for i in range(n, last + 1)
+                   if (snap(D[i]["c"], code) > oh if long else snap(D[i]["c"], code) < ol)), None)
         if kk is None:
             continue
-        e = round(D[kk]["c"], 2)
-        s = rule_stop(rule, oh, ol, e, long)
+        e = snap(D[kk]["c"], code)
+        s = rule_stop(rule, oh, ol, e, long, code)
         risk = (e - s) if long else (s - e)
         if risk <= 0:
             continue
-        t = round(e + rule["target_r"] * risk, 2) if long else round(e - rule["target_r"] * risk, 2)
+        t = snap(e + rule["target_r"] * risk, code) if long else snap(e - rule["target_r"] * risk, code)
+        if (t <= e) if long else (t >= e):
+            continue
         oc = None
         for b in D[kk + 1:last + 1]:
             if (b["l"] <= s) if long else (b["h"] >= s):
@@ -477,8 +539,9 @@ def history_replay(sessions, rule, last, side="buy"):
         cl = D[last]["c"]
         R = ((t - e) if long else (e - t)) / risk if oc == "target" else -1.0 if oc == "stop" else \
             ((cl - e) if long else (e - cl)) / risk
-        trades.append({"date": d, "time": clock12(OPEN_MIN + 5 * (kk + 1)), "entry": e, "stop": s, "target": t,
-                       "outcome": oc or "close", "R": round(R, 2)})
+        cost = e * cost_rate / risk
+        trades.append({"date": d, "time": clock24(OPEN_MIN + 5 * (kk + 1)), "entry": e, "stop": s, "target": t,
+                       "outcome": oc or "close", "R": round(R, 2), "R_net": round(R - cost, 2)})
     return {
         "sessions": len(sessions), "triggered": len(trades),
         "target": sum(1 for x in trades if x["outcome"] == "target"),
@@ -486,6 +549,7 @@ def history_replay(sessions, rule, last, side="buy"):
         "close": sum(1 for x in trades if x["outcome"] == "close"),
         "green": sum(1 for x in trades if x["R"] > 0),
         "avg_R": round(statistics.mean(x["R"] for x in trades), 3) if trades else None,
+        "avg_R_net": round(statistics.mean(x["R_net"] for x in trades), 3) if trades else None,
         "rule": rule, "trades": trades,
     }
 
@@ -496,10 +560,29 @@ def _num(v, what):
     try:
         x = float(v)
     except (TypeError, ValueError):
-        raise TMError("the plan needs a number for %s, got %r" % (what, v))
+        raise TMError("plan 的 %s 要是數字，拿到 %r" % (what, v))
     if not x > 0 or math.isinf(x):
-        raise TMError("the plan's %s must be a positive price, got %r" % (what, v))
+        raise TMError("plan 的 %s 要是正的價格，拿到 %r" % (what, v))
     return x
+
+
+def _opt_num(v):
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    return x if x > 0 and not math.isinf(x) else None
+
+
+def read_config(path):
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except ValueError as e:
+        raise TMError("%s 不是有效的 JSON：%s" % (path, e))
+    return cfg if isinstance(cfg, dict) else {}
 
 
 def load_plan(a, now_utc):
@@ -507,88 +590,98 @@ def load_plan(a, now_utc):
     if a.symbol:
         missing = [f for f in ("entry", "stop", "target", "entry_time") if getattr(a, f) is None]
         if missing:
-            raise TMError("with --symbol also give %s" % ", ".join("--" + m.replace("_", "-") for m in missing))
-        raw = {"symbol": a.symbol, "side": a.side, "date": a.date or to_eastern(now_utc).date().isoformat(),
+            raise TMError("用 --symbol 時也要給 %s" % "、".join("--" + m.replace("_", "-") for m in missing))
+        raw = {"symbol": a.symbol, "market": a.market, "side": a.side,
+               "date": a.date or tw.to_taipei(now_utc).date().isoformat(),
                "entry": a.entry, "stop": a.stop, "target": a.target, "entry_time": a.entry_time,
                "setup": a.setup, "opening_range": {"minutes": a.or_minutes}, "stop_rule": a.stop_rule,
                "interval": "5m"}
         src = "flags"
     else:
         if not os.path.exists(a.plan):
-            raise TMError("no plan at %s: run /trader-exit first, or pass --symbol --date --entry --stop "
-                          "--target --entry-time" % a.plan)
+            raise TMError("%s 沒有計畫：先跑 /trader-exit，或用 --symbol --date --entry --stop --target "
+                          "--entry-time 直接給" % a.plan)
         try:
             with open(a.plan, encoding="utf-8") as fh:
                 raw = json.load(fh)
         except ValueError as e:
-            raise TMError("%s is not valid JSON: %s" % (a.plan, e))
+            raise TMError("%s 不是有效的 JSON：%s" % (a.plan, e))
         if not isinstance(raw, dict):
-            raise TMError("%s is not a plan" % a.plan)
+            raise TMError("%s 不是交易計畫" % a.plan)
         src = a.plan
     return normalize_plan(raw, src)
 
 
 def normalize_plan(raw, src="flags"):
     """A plan dict (trader/plan.json shape) -> the checked plan the time machine runs."""
-    sym = str(raw.get("symbol") or "").strip().upper()
-    if not re.match(r"^[A-Z][A-Z0-9.\-]{0,9}$", sym):
-        raise TMError("the plan needs a ticker symbol, got %r" % raw.get("symbol"))
+    try:
+        code, suffix_market = tw.parse_symbol(raw.get("symbol"))
+    except ValueError:
+        raise TMError("plan 要有台股代號（例如 2303、6488.TWO），拿到 %r" % raw.get("symbol"))
+    market = raw.get("market") or suffix_market
+    if market not in (None, "TWSE", "TPEx"):
+        raise TMError("market 要是 TWSE 或 TPEx，拿到 %r" % market)
     side = str(raw.get("side") or "buy").lower()
     if side not in ("buy", "sell"):
-        raise TMError("side must be buy or sell, got %r" % raw.get("side"))
+        raise TMError("side 要是 buy 或 sell，拿到 %r" % raw.get("side"))
     interval = str(raw.get("interval") or "5m")
     if interval != "5m":
-        raise TMError("5-minute bars only (the plan says %s): Yahoo keeps 60 days of 5-min bars but only about "
-                      "7 days of 1-min bars, too few sessions for a fair replay pool" % interval)
+        raise TMError("只用 5 分 K（plan 寫的是 %s）：Yahoo 保留 60 天的 5 分 K，1 分 K 只有大約 7 天，"
+                      "交易日太少，重播池不公平" % interval)
     try:
         date = datetime.date.fromisoformat(str(raw.get("date") or "")).isoformat()
     except ValueError:
-        raise TMError("the plan needs a date like 2026-10-19, got %r" % raw.get("date"))
+        raise TMError("plan 的 date 要像 2026-11-02，拿到 %r" % raw.get("date"))
     entry, stop, target = (_num(raw.get(k), k) for k in ("entry", "stop", "target"))
     long = side == "buy"
     if long and not stop < entry < target:
-        raise TMError("a buy needs stop < entry < target (got stop %s, entry %s, target %s)" % (stop, entry, target))
+        raise TMError("做多要 停損 < 進場 < 停利（拿到 停損 %s、進場 %s、停利 %s）" % (stop, entry, target))
     if not long and not target < entry < stop:
-        raise TMError("a sell needs target < entry < stop (got target %s, entry %s, stop %s)" % (target, entry, stop))
+        raise TMError("放空要 停利 < 進場 < 停損（拿到 停利 %s、進場 %s、停損 %s）" % (target, entry, stop))
     k = None
     if raw.get("entry_time"):
         close_min = parse_clock(raw["entry_time"], "entry_time")
         if (close_min - OPEN_MIN) % 5:
-            raise TMError("entry_time %s is not on the 5-minute grid (use the bar's close, e.g. 10:15 AM)"
-                          % raw["entry_time"])
+            raise TMError("entry_time %s 不在 5 分鐘格線上（用那根 K 棒的收盤時間，例如 09:20）" % raw["entry_time"])
         k = (close_min - OPEN_MIN) // 5 - 1
     if raw.get("entry_bar") is not None:
         try:
             kb = int(raw["entry_bar"])
         except (TypeError, ValueError):
-            raise TMError("entry_bar must be a bar number, got %r" % raw["entry_bar"])
+            raise TMError("entry_bar 要是 K 棒編號，拿到 %r" % raw["entry_bar"])
         if k is not None and kb != k:
-            raise TMError("the plan disagrees with itself: entry_bar %d but entry_time %s is bar %d"
-                          % (kb, raw["entry_time"], k))
+            raise TMError("plan 自相矛盾：entry_bar 是 %d，但 entry_time %s 是第 %d 根" % (kb, raw["entry_time"], k))
         k = kb
     if k is None:
-        raise TMError("the plan needs entry_time (the entry bar's close, e.g. 10:15 AM) or entry_bar")
+        raise TMError("plan 要有 entry_time（進場那根 K 棒的收盤時間，例如 09:20）或 entry_bar")
     if not 0 <= k <= SESSION_BARS - 2:
-        raise TMError("the entry must close between 9:35 AM and 3:55 PM to leave bars to replay "
-                      "(got %s)" % clock12(OPEN_MIN + 5 * (k + 1)))
+        raise TMError("進場那根 K 棒要在 09:05 到 13:20 之間收盤，後面才有 K 棒可以重播（拿到 %s）"
+                      % clock24(OPEN_MIN + 5 * (k + 1)))
     orng = raw.get("opening_range") or {}
     or_min = orng.get("minutes", 15) if isinstance(orng, dict) else 15
     try:
         or_min = int(or_min)
     except (TypeError, ValueError):
-        raise TMError("opening_range.minutes must be a number")
-    if or_min < 5 or or_min % 5 or or_min >= 390:
-        raise TMError("opening_range.minutes must be a multiple of 5 (got %s)" % or_min)
+        raise TMError("opening_range.minutes 要是數字")
+    if or_min < 5 or or_min % 5 or or_min >= SESSION_BARS * 5:
+        raise TMError("opening_range.minutes 要是 5 的倍數（拿到 %s）" % or_min)
     risk = (entry - stop) if long else (stop - entry)
-    return {
-        "symbol": sym, "side": side, "date": date, "setup": str(raw.get("setup") or "orb"),
-        "entry": entry, "entry_time": clock12(OPEN_MIN + 5 * (k + 1)), "entry_bar": k,
-        "stop": stop, "target": target, "risk_per_share": round(risk, 2),
+    out = {
+        "symbol": code, "market": market, "name": raw.get("name") or None, "side": side, "date": date,
+        "setup": str(raw.get("setup") or "orb"),
+        "entry": entry, "entry_time": clock24(OPEN_MIN + 5 * (k + 1)), "entry_bar": k,
+        "stop": stop, "target": target, "risk_per_share": round(risk, 4),
         "target_r": round(((target - entry) if long else (entry - target)) / risk, 2),
         "opening_range": dict(orng, minutes=or_min) if isinstance(orng, dict) else {"minutes": or_min},
-        "stop_rule": str(raw.get("stop_rule") or "auto"), "interval": "5m",
+        "stop_rule": str(raw.get("stop_rule") or "auto").replace("-", "_"), "interval": "5m",
         "flat_by": raw.get("flat_by"), "from": src,
     }
+    for key in ("prev_close", "limit_up", "limit_down", "cost_per_share", "cost_r"):
+        out[key] = _opt_num(raw.get(key))
+    out["limits_source"] = raw.get("limits_source") if out["limit_up"] and out["limit_down"] else None
+    # trader-exit asked MIS and got no limits: an ETF of foreign shares or bonds has none
+    out["no_limits"] = raw.get("limits_source") == "mis" and not (out["limit_up"] and out["limit_down"])
+    return out
 
 
 def resolve_rule(plan, entry_day):
@@ -599,6 +692,7 @@ def resolve_rule(plan, entry_day):
     if plan["setup"].lower() != "orb":
         return None
     long = plan["side"] == "buy"
+    code = plan["symbol"]
     n = plan["opening_range"]["minutes"] // 5
     rule = {"setup": "orb", "or_minutes": plan["opening_range"]["minutes"], "stop_rule": plan["stop_rule"],
             "target_r": plan["target_r"],
@@ -607,10 +701,10 @@ def resolve_rule(plan, entry_day):
     if rule["stop_rule"] == "auto":
         rule["stop_rule"] = "pct"
         if all(i in entry_day for i in range(n)):
-            oh, ol = opening_range(entry_day, n)
-            if abs(cents_away((oh + ol) / 2, long) - plan["stop"]) < 0.005:
+            oh, ol = opening_range(entry_day, n, code)
+            if abs(tick_away((oh + ol) / 2, code, long) - plan["stop"]) < 1e-6:
                 rule["stop_rule"] = "or_mid"
-            elif abs(cents_away(ol if long else oh, long) - plan["stop"]) < 0.005:
+            elif abs(tick_away(ol if long else oh, code, long) - plan["stop"]) < 1e-6:
                 rule["stop_rule"] = far
     elif rule["stop_rule"] in ("or_low", "or_high") and rule["stop_rule"] != far:
         rule["stop_rule"] = "pct"
@@ -621,21 +715,65 @@ def resolve_rule(plan, entry_day):
     return rule
 
 
+def resolve_limits(plan, meta, days):
+    """(limit_up, limit_down, source, note). The plan's limits; else 10 % around the plan's
+    prev_close; else around Yahoo's previousClose when the plan is for the data's last day;
+    else around the previous session's last 5-minute close (the auction is not in the data).
+    None when the plan says MIS had none (00931B on 2026-11-04 was clamped to 10 % before)."""
+    code = plan["symbol"]
+    if plan["limit_up"] and plan["limit_down"]:
+        return plan["limit_up"], plan["limit_down"], plan.get("limits_source") or "plan", ""
+    if plan.get("no_limits"):
+        return None, None, "mis", "MIS 沒有給漲跌停價（國外成分 ETF 沒有漲跌幅限制）：重播沒有夾在漲跌停之間"
+    ref, how = plan["prev_close"], "plan 的昨收"
+    if ref is None:
+        last_day = None
+        rmt = meta.get("regularMarketTime")
+        if isinstance(rmt, (int, float)):
+            last_day = tw.to_taipei(utc_of(rmt)).date().isoformat()
+        if last_day == plan["date"] and _opt_num(meta.get("previousClose")):
+            ref, how = float(meta["previousClose"]), "Yahoo 的昨收"
+    if ref is None:
+        before = [d for d in sorted(days) if d < plan["date"]]
+        if not before:
+            return None, None, None, "沒有昨收可以算漲跌停：重播沒有夾在漲跌停之間"
+        s = days[before[-1]]
+        ref = snap(s[max(s)]["c"], code)
+        how = "%s 最後一根 5 分 K 的收盤（收盤集合競價不在資料裡，可能差一兩檔）" % before[-1]
+    up, down = tw.price_limits(ref, code)
+    note = "plan 沒有漲跌停：用%s %s 算出 %s / %s" % (how, tw.fmt_price(ref, code), tw.fmt_price(up, code),
+                                                   tw.fmt_price(down, code))
+    return float(up), float(down), "computed", note
+
+
+def resolve_cost(plan, cfg):
+    """(cost per share as a fraction of the price, note). The plan's cost_per_share, else its
+    cost_r, else the config's fee terms: fee twice plus the day-trade tax, no fee minimum."""
+    if plan["cost_per_share"] is not None:
+        return plan["cost_per_share"] / plan["entry"], ""
+    if plan["cost_r"] is not None:
+        return plan["cost_r"] * plan["risk_per_share"] / plan["entry"], ""
+    day = datetime.date.fromisoformat(plan["date"])
+    rate = float(tw.cost_rate(plan["symbol"], True, tw.fee_settings(cfg), day))
+    per = plan["entry"] * rate
+    return rate, ("plan 沒有成本欄位：用設定檔的手續費算，每股約 %.2f（%.2fR）" % (per, per / plan["risk_per_share"]))
+
+
 # ---------------------------------------------------------------- the run
 
-def _until12(mc):
-    t = mc.get("until") or "16:00"
-    return clock12(int(t[:2]) * 60 + int(t[3:]))
+def _until(mc):
+    return mc.get("until") or clock24(END_MIN)
 
 
 def lean(mc):
     """(gap, share, break_even): the target's share of the replays that hit one side,
-    minus the share that breaks even at the target's R. None when nothing hit a side."""
+    minus the share that breaks even at the target's R and the cost. None when nothing hit a side."""
     pt, ps = mc["p_target"], mc["p_stop"]
     if pt + ps <= 0:
         return None
     r = mc.get("r_at_target") or 1.0
-    share, even = pt / (pt + ps), 1.0 / (1.0 + r)
+    c = mc.get("cost_r") or 0.0
+    share, even = pt / (pt + ps), (1.0 + c) / (1.0 + r)
     return share - even, share, even
 
 
@@ -644,22 +782,24 @@ def verdict(mc):
     pt, ps = mc["p_target"], mc["p_stop"]
     lv = lean(mc)
     if lv is None:
-        return "No replay reached the target or the stop by %s: the price at %s decides every one." % (
-            _until12(mc), _until12(mc))
+        return "到 %s 沒有任何一次重播碰到停利或停損：每一次都由 %s 的價格決定。" % (_until(mc), _until(mc))
     d, share, even = lv
     r = mc.get("r_at_target") or 1.0
+    c = mc.get("cost_r") or 0.0
     one_r = abs(r - 1.0) < 0.005
+    no_cost = c < 0.005
     if abs(d) < COIN_FLIP:
-        head = "Close to a coin flip" if one_r else "Close to break-even"
+        head = "接近擲硬幣" if one_r and no_cost else "接近損益兩平"
     elif abs(d) < STRONG:
-        head = "Leans toward the target" if d > 0 else "Leans toward the stop"
+        head = "偏向停利" if d > 0 else "偏向停損"
     else:
-        head = "Strongly toward the target" if d > 0 else "Strongly toward the stop"
-    odds = "target first %.1f %% vs stop first %.1f %%" % (100 * pt, 100 * ps)
-    if one_r:
-        return "%s: %s." % (head, odds)
-    return ("%s: at %gR the target has to come first in %.0f %% of the replays that hit one side; "
-            "it did in %.0f %% (%s)." % (head, round(r, 2), 100 * even, 100 * share, odds))
+        head = "明顯偏向停利" if d > 0 else "明顯偏向停損"
+    odds = "先到停利 %.1f%% 對先到停損 %.1f%%" % (100 * pt, 100 * ps)
+    if one_r and no_cost:
+        return "%s：%s。" % (head, odds)
+    terms = "%gR" % round(r, 2) if no_cost else "%gR 加上成本 %.2fR" % (round(r, 2), c)
+    return ("%s：%s 時，碰到停利或停損的重播裡，停利要先到 %.0f%% 才打平；實際是 %.0f%%（%s）。"
+            % (head, terms, 100 * even, 100 * share, odds))
 
 
 def verdict_notes(mc):
@@ -667,147 +807,215 @@ def verdict_notes(mc):
     notes = []
     pn = mc.get("p_neither", 0)
     if pn > MANY_NEITHER and lean(mc) is not None:
-        notes.append("%.1f %% of the replays hit neither by %s; the price at %s decides those."
-                     % (100 * pn, _until12(mc), _until12(mc)))
+        notes.append("%.1f%% 的重播到 %s 都沒碰到停利或停損，這些由 %s 的價格決定。"
+                     % (100 * pn, _until(mc), _until(mc)))
     lv = lean(mc)
-    avg = mc.get("avg_R")
+    avg = mc.get("avg_R_net", mc.get("avg_R"))
     if lv and abs(lv[0]) >= COIN_FLIP and avg is not None and avg != 0 and (avg > 0) != (lv[0] > 0):
-        notes.append("Average R is %+.3f all the same: the replays that hit neither pull it the other way." % avg)
+        notes.append("不過扣成本的平均 R 是 %+.3f：那些都沒碰到的重播把它拉往另一邊。" % avg)
     return notes
 
 
-def time_machine(text, plan, now_utc, replays=10000, seed=19, window=2, until=None, source="yahoo"):
+def time_machine(text, plan, now_utc, replays=10000, seed=19, window=2, until=None, source="yahoo",
+                 config=None, calendar=None):
     """Chart JSON text + a normalized plan -> the timemachine.json document."""
     if not 1 <= replays <= 1000000:
-        raise TMError("--replays must be between 1 and 1,000,000")
+        raise TMError("--replays 要在 1 到 1,000,000 之間")
     if not 0 <= window <= 10:
-        raise TMError("--window must be between 0 and 10 bars")
-    sym = plan["symbol"]
-    result = chart_result(text, sym)
+        raise TMError("--window 要在 0 到 10 根之間")
+    code = plan["symbol"]
+    cal = calendar or tw.Calendar()
+    result = chart_result(text, code)
     meta, bars, dropped = parse_bars(result, now_utc)
     msym = str(meta.get("symbol") or "").upper()
-    if msym and msym != sym.replace(".", "-"):
-        raise TMError("the data is for %s but the plan is for %s" % (msym, sym))
+    if msym:
+        mcode, _, suffix = msym.partition(".")
+        data_market = {"TW": "TWSE", "TWO": "TPEx"}.get(suffix)
+        if mcode != code or (plan["market"] and data_market and data_market != plan["market"]):
+            raise TMError("資料是 %s 的，計畫卻是 %s" % (msym, tw.yahoo_symbol(code, plan["market"])
+                                                     if plan["market"] else code))
+        plan = dict(plan, market=plan["market"] or data_market)
     gran = meta.get("dataGranularity")
     if gran and gran != "5m":
-        raise TMError("the data has %s bars; the time machine needs 5-minute bars" % gran)
+        raise TMError("資料是 %s K 棒；時光機要 5 分 K" % gran)
     if not bars:
-        raise TMError("no complete 5-minute bars for %s in the data" % sym)
+        raise TMError("資料裡沒有 %s 收完的 5 分 K" % code)
     k = plan["entry_bar"]
-    early = plan["date"] in NYSE_EARLY_CLOSE
-    end_min = EARLY_MIN if early else CLOSE_MIN
-    until_min = end_min if until is None else parse_clock(until, "--until")
-    if (until_min - OPEN_MIN) % 5 or until_min > end_min:
-        raise TMError("--until must be on the 5-minute grid and no later than %s%s"
-                      % (clock12(end_min), " (an early close)" if early else ""))
+    until_min = END_MIN if until is None else parse_clock(until, "--until")
+    if (until_min - OPEN_MIN) % 5 or until_min > END_MIN:
+        raise TMError("--until 要在 5 分鐘格線上，而且不能晚於 %s（13:25 之後是收盤集合競價）" % clock24(END_MIN))
     last = (until_min - OPEN_MIN) // 5 - 1
     if last <= k:
-        raise TMError("--until %s leaves nothing to replay after the %s entry" % (clock12(until_min),
-                                                                             plan["entry_time"]))
+        raise TMError("--until %s 在 %s 進場之後沒有 K 棒可以重播" % (clock24(until_min), plan["entry_time"]))
     days = split_sessions(bars)
     entry_day = days.get(plan["date"], {})
-    if k not in entry_day:
-        reason = ("no bars for that day" if not entry_day else
-                  "the data stops at the %s bar" % entry_day[max(entry_day)]["start"])
-        raise TMError("the entry is not in the data: no complete %s bar (closing %s) on %s for %s (%s)"
-                      % (clock24(OPEN_MIN + 5 * k), plan["entry_time"], plan["date"], sym, reason))
-    eb = entry_day[k]
     warn = []
-    if not eb["l"] - 0.01 <= plan["entry"] <= eb["h"] + 0.01:
-        warn.append("the plan's entry %.2f is outside that bar's range %.2f to %.2f"
-                    % (plan["entry"], eb["l"], eb["h"]))
-    sessions, short = full_sessions(days, plan["date"])
+    day = datetime.date.fromisoformat(plan["date"])
+    local = tw.to_taipei(now_utc).replace(tzinfo=None)
+    so_far = ("資料只到 %s 那根" % entry_day[max(entry_day)]["start"]) if entry_day else "那天沒有 K 棒"
+    if k not in entry_day:
+        closed = cal.closed(day)
+        # a plan from MIS (trader-entry --source mis) comes 20 minutes before Yahoo's bars do;
+        # the replay draws only from past sessions, so a bar that has closed by the clock will do
+        late = (not closed and local.date() == day
+                and local >= datetime.datetime.combine(day, datetime.time(*divmod(OPEN_MIN + 5 * (k + 1), 60))))
+        if not late:
+            raise TMError("資料裡沒有進場那根 K 棒：%s %s 的 %s 那根（%s 收盤）還沒有收完的資料（%s）"
+                          % (code, plan["date"], clock24(OPEN_MIN + 5 * k), plan["entry_time"],
+                             ("那天休市：%s" % closed) if closed else so_far))
+        warn.append("Yahoo 還沒有進場那根 K 棒（%s 收盤；盤中延遲約 20 分鐘，%s）：沒有核對進場價在那根 K 棒裡。"
+                    "重播只抽過去的交易日，不受影響" % (plan["entry_time"], so_far))
+    eb = entry_day.get(k)
+    tick = float(tw.tick_size(plan["entry"], code))
+    if eb and not eb["l"] - tick / 2 <= plan["entry"] <= eb["h"] + tick / 2:
+        warn.append("計畫的進場價 %s 不在那根 K 棒的 %s 到 %s 之間"
+                    % (tw.fmt_price(plan["entry"], code), tw.fmt_price(snap(eb["l"], code), code),
+                       tw.fmt_price(snap(eb["h"], code), code)))
+    for what, price in (("進場價", plan["entry"]), ("停損", plan["stop"]), ("停利", plan["target"])):
+        if not tw.on_tick(round(price, 6), code):
+            warn.append("%s %s 不在升降單位上（這個價位一檔是 %s）"
+                        % (what, price, "%g" % float(tw.tick_size(price, code))))
+    unknown = cal.unknown_note(datetime.date.fromisoformat(plan["date"]))
+    if unknown:
+        warn.append(unknown)
+    sessions, short, filled = full_sessions(days, plan["date"], session_dates(result), quiet_slots(result))
+    for s in short:
+        why = cal.closed(datetime.date.fromisoformat(s["date"]))
+        if why:
+            s["closed"] = why
     if len(sessions) < MIN_SESSIONS:
-        raise TMError("only %d full session(s) of %s before %s in the data; the time machine needs at least %d"
-                      % (len(sessions), sym, plan["date"], MIN_SESSIONS))
+        raise TMError("資料裡 %s 在 %s 之前只有 %d 個完整交易日；時光機至少要 %d 個"
+                      % (code, plan["date"], len(sessions), MIN_SESSIONS))
+    lu, ld, lsrc, lnote = resolve_limits(plan, meta, days)
+    if lnote:
+        warn.append(lnote)
+    long = plan["side"] == "buy"
+    if lu and ((plan["target"] > lu) if long else (plan["stop"] > lu)):
+        warn.append("%s %s 高於漲停 %s：重播碰不到" % ("停利" if long else "停損",
+                                                tw.fmt_price(plan["target"] if long else plan["stop"], code),
+                                                tw.fmt_price(lu, code)))
+    if ld and ((plan["stop"] < ld) if long else (plan["target"] < ld)):
+        warn.append("%s %s 低於跌停 %s：重播碰不到，跌停鎖住時也賣不掉"
+                    % ("停損" if long else "停利", tw.fmt_price(plan["stop"] if long else plan["target"], code),
+                       tw.fmt_price(ld, code)))
+    rate, cnote = resolve_cost(plan, config or {})
+    if cnote:
+        warn.append(cnote)
+    cost_r = plan["entry"] * rate / plan["risk_per_share"]
     pool = build_pool(sessions)
-    mc = simulate(pool, plan["entry"], plan["stop"], plan["target"], k, last, replays, seed, window, plan["side"])
+    mc = simulate(pool, plan["entry"], plan["stop"], plan["target"], k, last, replays, seed, window, plan["side"],
+                  lu, ld, cost_r)
     mc = dict(mc, until=clock24(until_min), pool_sessions=len(sessions), pool_from=sessions[0][0],
-              pool_to=sessions[-1][0],
+              pool_to=sessions[-1][0], limits_source=lsrc, cost_per_share=round(plan["entry"] * rate, 4),
+              break_even=round(lean(mc)[2], 4) if lean(mc) else None,
               band_times=[clock24(OPEN_MIN + 5 * (j + 1)) for j in range(k, last + 1)])
     rule = resolve_rule(plan, entry_day)
     plan_out = {kk: v for kk, v in plan.items() if v is not None}
     if rule:
         plan_out["stop_rule"] = rule["stop_rule"]
-        history = history_replay(sessions, rule, last, plan["side"])
+        history = history_replay(sessions, rule, last, plan["side"], code, rate)
     else:
         history = {"sessions": len(sessions), "triggered": 0, "rule": None, "trades": [],
-                   "note": "skipped: the history replay knows the opening-range breakout (orb) only, "
-                           "this plan's setup is %r" % plan["setup"]}
+                   "note": "略過：歷史重跑只認得開盤區間突破（orb），這份計畫的型態是 %r" % plan["setup"]}
     last_bar = bars[-1]
+    who = "%s %s" % (plan["name"], code) if plan.get("name") else code
     return {
         "created_by": "trader-timemachine",
         "created_at": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": source,
-        "data": {"symbol": msym or sym, "interval": "5m", "range": "60d",
-                 "last_bar": "%s %s ET" % (last_bar["date"], last_bar["start"]),
-                 "dropped": dropped, "short_sessions_left_out": short},
+        "data": {"symbol": msym or tw.yahoo_symbol(code, plan["market"]), "interval": "5m", "range": "60d",
+                 "last_bar": "%s %s 台北" % (last_bar["date"], last_bar["start"]),
+                 "dropped": dropped, "short_sessions_left_out": short, "quiet_bars_filled": filled},
         "plan": plan_out,
         "mc": mc,
         "history": history,
         "verdict": verdict(mc),
         "verdict_notes": verdict_notes(mc),
         "warnings": warn,
-        "note": ("A simulation built from %s's own last %d full sessions. It is not a prediction: earnings, "
-                 "news and halts can do things those sessions never did. Same seed, same numbers." % (sym, len(sessions))),
+        "note": ("這是用%s 最近 %d 個完整交易日做的模擬，不是預測：新聞、處置、漲跌停鎖死都可能做出這些"
+                 "交易日沒發生過的事。13:25 到 13:30 的收盤集合競價不在 5 分 K 資料裡，沒有模擬。"
+                 "同一個種子，同樣的數字。" % (who, len(sessions))),
     }
 
 
 # ---------------------------------------------------------------- output
 
 def pc(x):
-    return "%.1f %%" % (100.0 * x)
+    return "%.1f%%" % (100.0 * x)
 
 
 def report(doc):
     p, m, h = doc["plan"], doc["mc"], doc["history"]
+    code = p["symbol"]
     long = p["side"] == "buy"
-    until = clock12(int(m["until"][:2]) * 60 + int(m["until"][3:]))
-    wd = WEEKDAYS[datetime.date.fromisoformat(p["date"]).weekday()]
+    until = m["until"]
     r = p["target_r"]
+    fp = lambda x: tw.fmt_price(x, code)  # noqa: E731
+    who = "%s %s" % (p["name"], code) if p.get("name") else code
+    risk_ticks = tw.tick_steps(p["stop"], p["entry"], code) if long else tw.tick_steps(p["entry"], p["stop"], code)
     lines = [
-        "%s %s, %s %s: entry %.2f at %s (bar %d), stop %.2f, target %.2f (%sR, risk %.2f a share)."
-        % (p["symbol"], p["side"], wd, p["date"], p["entry"], p["entry_time"], p["entry_bar"], p["stop"],
-           p["target"], ("%g" % r), p["risk_per_share"]),
-        "%s replays of the rest of the session, %s to %s (%d five-minute bars), seed %d."
+        "%s %s，%s：進場 %s（%s，第 %d 根），停損 %s，停利 %s（%gR，每股風險 %s，%d 檔）。"
+        % (who, "做多" if long else "放空", tw.day_label(datetime.date.fromisoformat(p["date"])), fp(p["entry"]),
+           p["entry_time"], p["entry_bar"], fp(p["stop"]), fp(p["target"]), r,
+           ("%.4f" % p["risk_per_share"]).rstrip("0").rstrip("."), risk_ticks),
+        "重播當天剩下的盤 %s 次：%s 到 %s（%d 根 5 分 K），亂數種子 %d。"
         % ("{:,}".format(m["replays"]), p["entry_time"], until, m["bars_left"], m["seed"]),
-        "Each bar is drawn whole from %s's own 5-min bars at the same time of day (+-%d bars) over its last "
-        "%d full sessions (%s to %s)." % (p["symbol"], m["window"], m["pool_sessions"], m["pool_from"], m["pool_to"]),
-        "",
-        "  target first   %s" % pc(m["p_target"]),
-        "  stop first     %s" % pc(m["p_stop"]),
-        "  neither        %-8s still open at %s" % (pc(m["p_neither"]), until),
-        "  green          %-8s target first, or %s the entry at %s" % (pc(m["p_green"]),
-                                                                       "above" if long else "below", until),
-        "",
-        "  Price at %s: median %.2f, 90 %% of replays between %.2f and %.2f."
-        % (until, m["median_close"], m["p5_close"], m["p95_close"]),
-        "  Average R: %+.3f (R = the %.2f risk: %sR at the target, -1R at the stop)."
-        % (m["avg_R"], p["risk_per_share"], ("+%g" % m["r_at_target"]), ),
-        "",
+        "每一根都整根抽自%s 過去 %d 個完整交易日（%s 到 %s）同一時段（前後 %d 根）的 5 分 K。"
+        % (who, m["pool_sessions"], m["pool_from"], m["pool_to"], m["window"]),
     ]
+    if m.get("limit_up") and m.get("limit_down"):
+        lines.append("每一根重播都夾在漲停 %s 和跌停 %s 之間。" % (fp(m["limit_up"]), fp(m["limit_down"])))
+    tax = tw.sell_tax_rate(code, True, datetime.date.fromisoformat(p["date"]))
+    if tw.is_etf_like(code):
+        tax_text = "加 ETF 證交稅" if tax else "債券 ETF 免證交稅"
+    else:
+        tax_text = "加當沖證交稅" if tax == tw.DAY_TRADE_TAX_RATE else "加證交稅"
+    lines += [
+        "成本：每股約 %.2f（手續費買賣各一次，%s），是 %.2fR。" % (m["cost_per_share"], tax_text, m["cost_r"]),
+        "",
+        "  先到停利   %s" % pc(m["p_target"]),
+        "  先到停損   %s" % pc(m["p_stop"]),
+        "  都沒碰到   %-7s %s 還沒出場" % (pc(m["p_neither"]), until),
+        "  站上進場價 %-7s 先到停利，或 %s 時%s進場價" % (pc(m["p_green"]), until, "高於" if long else "低於"),
+        "",
+        "  %s 的價格：中位數 %.2f，90%% 的重播在 %.2f 到 %.2f 之間。"
+        % (until, m["median_close"], m["p5_close"], m["p95_close"]),
+        "  平均 R：%+.3f，扣成本 %+.3f（R 是每股風險：停利 +%gR，停損 -1R）。"
+        % (m["avg_R"], m["avg_R_net"], m["r_at_target"]),
+    ]
+    if m.get("p_limit_up") or m.get("p_limit_down"):
+        lines.append("  %.2f%% 的重播碰到漲停，%.2f%% 碰到跌停。"
+                     % (100.0 * m.get("p_limit_up", 0), 100.0 * m.get("p_limit_down", 0)))
+    lines.append("")
     if h.get("rule"):
         ru = h["rule"]
-        stop_words = {"or_mid": "opening-range midpoint", "or_low": "opening-range low",
-                      "or_high": "opening-range high"}.get(ru["stop_rule"],
-                                                           "%.2f %% from the entry" % ru.get("stop_pct", 0))
+        stop_words = STOP_WORDS.get(ru["stop_rule"], "進場價下方 %.2f%%" % ru.get("stop_pct", 0)
+                                    if long else "進場價上方 %.2f%%" % ru.get("stop_pct", 0))
         if h["triggered"]:
-            lines.append("History: the same rule (%d-min opening range, stop at the %s, %gR target) on each of "
-                         "those %d real sessions fired %d times: %d target, %d stop, %d neither. Average R %+.3f."
+            lines.append("歷史：同一條規則（%d 分鐘開盤區間、停損在%s、%gR 停利）在這 %d 個真實交易日觸發 %d 次："
+                         "停利 %d、停損 %d、都沒碰到 %d。平均 R %+.3f，扣成本 %+.3f。"
                          % (ru["or_minutes"], stop_words, ru["target_r"], h["sessions"], h["triggered"],
-                            h["target"], h["stop"], h["close"], h["avg_R"]))
+                            h["target"], h["stop"], h["close"], h["avg_R"], h["avg_R_net"]))
         else:
-            lines.append("History: the same rule never fired in those %d sessions." % h["sessions"])
+            lines.append("歷史：同一條規則在這 %d 個交易日一次都沒觸發。" % h["sessions"])
     else:
-        lines.append("History: " + h.get("note", "skipped."))
+        lines.append("歷史：" + h.get("note", "略過。"))
     lines += ["", doc["verdict"]] + list(doc.get("verdict_notes") or []) + [""]
     for w in doc.get("warnings") or []:
-        lines.append("Note: " + w + ".")
-    if doc["data"]["short_sessions_left_out"]:
-        lines.append("Left out %d short session(s) (half days or gaps): %s."
-                     % (len(doc["data"]["short_sessions_left_out"]),
-                        ", ".join(x["date"] for x in doc["data"]["short_sessions_left_out"])))
-    lines.append(doc["note"] + " Repeat this run with --seed %d." % m["seed"])
+        lines.append("注意：" + w + "。")
+    left_out = doc["data"]["short_sessions_left_out"]
+    closed = [x for x in left_out if x.get("closed")]
+    gaps = [x for x in left_out if not x.get("closed")]
+    if closed:
+        lines.append("略過休市日：%s。" % "、".join("%s（%s）" % (x["date"], x["closed"]) for x in closed))
+    if gaps:
+        lines.append("略過 %d 個 K 棒不完整的交易日：%s。"
+                     % (len(gaps), "、".join("%s（%d 根）" % (x["date"], x["bars"]) for x in gaps)))
+    filled = doc["data"].get("quiet_bars_filled") or {}
+    if filled.get("bars"):
+        lines.append("%d 個交易日有沒人成交的 5 分鐘（共 %d 根）：用前一根的收盤補成平的 K 棒（量 0）。"
+                     % (filled["days"], filled["bars"]))
+    lines.append(doc["note"] + "用 --seed %d 可以重跑。" % m["seed"])
     return lines
 
 
@@ -831,28 +1039,27 @@ def render_chart(doc, height=17):
         for r in range(r75, r25 + 1):
             grid[r][j] = ":"
         grid[r50][j] = "*"
-    marks = {row(p["target"]): "target", row(p["stop"]): "stop"}
+    marks = {row(p["target"]): "停利", row(p["stop"]): "停損"}
     if row(p["entry"]) not in marks:
-        marks[row(p["entry"])] = "entry"
+        marks[row(p["entry"])] = "進場"
     for r in (row(p["target"]), row(p["stop"])):
         grid[r] = ["-" if ch == " " else ch for ch in grid[r]]
-    out = ["%s %s, %s replay paths from the %s entry (seed %d)" % (
-        p["symbol"], p["date"], "{:,}".format(m.get("band_paths", BAND_PATHS)), p["entry_time"], m["seed"])]
+    who = "%s %s" % (p["name"], p["symbol"]) if p.get("name") else p["symbol"]
+    out = ["%s %s，從 %s 進場的 %s 條重播路徑（亂數種子 %d）" % (
+        who, p["date"], p["entry_time"], "{:,}".format(m.get("band_paths", BAND_PATHS)), m["seed"])]
     for r in range(height):
         label = marks.get(r)
-        price = {"target": p["target"], "stop": p["stop"], "entry": p["entry"]}.get(label, hi - r * step)
+        price = {"停利": p["target"], "停損": p["stop"], "進場": p["entry"]}.get(label, hi - r * step)
         left = ("%9.2f |" % price) if (label or r in (0, height - 1)) else "          |"
         out.append(left + "".join(grid[r]) + ("  " + label if label else ""))
     axis = [" "] * len(bands)
     for j in sorted({0, len(bands) // 2, len(bands) - 1}):
-        t = times[j]
-        hh, mm = int(t[:2]), t[3:]
-        lab = "%d:%s" % (hh % 12 or 12, mm)
+        lab = times[j]
         s = max(0, min(j, len(bands) - len(lab)))
         axis[s:s + len(lab)] = list(lab)
     out.append("          +" + "-" * len(bands))
     out.append("           " + "".join(axis))
-    out.append("* median   : middle half of the paths   . 90 % of the paths   - stop and target")
+    out.append("* 中位數   : 中間一半的路徑   . 90% 的路徑   - 停損和停利")
     return out
 
 
@@ -863,18 +1070,25 @@ def _write(path, doc):
     if d:
         os.makedirs(d, exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=1)
+        json.dump(doc, fh, indent=1, ensure_ascii=False)
         fh.write("\n")
 
 
 def compute(a):
     now = parse_now(a.now)
     plan = load_plan(a, now)
+    cfg = read_config(a.config)
+    trader_dir = os.path.dirname(a.config) or "."
+    cal = tw.load_calendar(trader_dir, cfg)
+    if not plan["market"]:
+        plan["market"] = (tw.load_universe(os.path.join(trader_dir, "universe.txt")).get(plan["symbol"]) or {}).get(
+            "market")
     if a.offline:
         text, source = read_offline(a.offline, plan["symbol"]), "offline"
     else:
-        text, source = fetch_chart(plan["symbol"]), "yahoo"
-    return time_machine(text, plan, now, a.replays, a.seed, a.window, a.until, source)
+        text, market = fetch_for(plan["symbol"], plan["market"])
+        plan["market"], source = market, "yahoo"
+    return time_machine(text, plan, now, a.replays, a.seed, a.window, a.until, source, cfg, cal)
 
 
 def cmd_run(a):
@@ -883,25 +1097,25 @@ def cmd_run(a):
         _write(a.write, doc)
     if a.json:
         slim = dict(doc, mc={k: v for k, v in doc["mc"].items() if k != "sample_paths"})
-        print(json.dumps(slim, indent=2))
+        print(json.dumps(slim, indent=2, ensure_ascii=False))
     else:
         print("\n".join(report(doc)))
         if a.write:
-            print("Wrote %s." % a.write)
-        print("Next: /trader-budget sizes it to your budget and your max loss per trade.")
+            print("已寫入 %s。" % a.write)
+        print("下一步：/trader-budget 依你的預算和單筆最大虧損算股數。")
     return 0
 
 
 def cmd_chart(a):
     if a.from_file:
         if not os.path.exists(a.from_file):
-            raise TMError("no %s: run timemachine.py run --write first" % a.from_file)
+            raise TMError("沒有 %s：先跑 timemachine.py run --write" % a.from_file)
         try:
             with open(a.from_file, encoding="utf-8") as fh:
                 doc = json.load(fh)
             doc["mc"]["bands"]
         except (ValueError, KeyError, TypeError):
-            raise TMError("%s is not a time machine result" % a.from_file)
+            raise TMError("%s 不是時光機的結果" % a.from_file)
     else:
         doc = compute(a)
     print("\n".join(render_chart(doc)))
@@ -910,37 +1124,40 @@ def cmd_chart(a):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Time Machine: replay a planned day trade (trader-timemachine).")
+    tw.utf8_stdio()
+    ap = argparse.ArgumentParser(description="時光機：在下單前重播一筆當沖計畫（trader-timemachine）。")
     sub = ap.add_subparsers(dest="cmd")
 
     def common(p):
-        p.add_argument("--plan", default="trader/plan.json", help="the plan from trader-exit")
-        p.add_argument("--symbol", help="or give the plan as flags: ticker")
+        p.add_argument("--plan", default="trader/plan.json", help="trader-exit 寫的計畫")
+        p.add_argument("--config", default="trader/config.json", help="手續費折扣等設定（可以沒有）")
+        p.add_argument("--symbol", help="或用參數直接給計畫：台股代號，例如 2303")
+        p.add_argument("--market", choices=["TWSE", "TPEx"], help="上市 TWSE 或上櫃 TPEx（不給就自己找）")
         p.add_argument("--side", default="buy", choices=["buy", "sell"])
-        p.add_argument("--date", help="the plan's day, YYYY-MM-DD (default today, New York)")
+        p.add_argument("--date", help="計畫的日期 YYYY-MM-DD（預設台北的今天）")
         p.add_argument("--entry", type=float)
         p.add_argument("--stop", type=float)
         p.add_argument("--target", type=float)
-        p.add_argument("--entry-time", help='the entry bar\'s close, e.g. "10:15 AM"')
+        p.add_argument("--entry-time", help="進場那根 K 棒的收盤時間，例如 09:20")
         p.add_argument("--setup", default="orb")
         p.add_argument("--or-minutes", type=int, default=15)
         p.add_argument("--stop-rule", default="auto", choices=["auto", "or_mid", "or_low", "or_high", "pct"])
         p.add_argument("--replays", type=int, default=10000)
         p.add_argument("--seed", type=int, default=19)
-        p.add_argument("--window", type=int, default=2, help="draw from the same time of day +- this many bars")
-        p.add_argument("--until", help="end each replay at this time (default 16:00, the close)")
-        p.add_argument("--offline", metavar="FILE", help="a saved Yahoo chart JSON (.json or .json.gz), no network")
-        p.add_argument("--now", help='pretend it is this time ("2026-10-19 10:15" New York, or ISO with Z)')
+        p.add_argument("--window", type=int, default=2, help="從同一時段前後這麼多根裡抽")
+        p.add_argument("--until", help="每次重播在這個時間結束（預設 13:25，連續交易結束）")
+        p.add_argument("--offline", metavar="FILE", help="存好的 Yahoo 線圖 JSON（.json 或 .json.gz），不連網")
+        p.add_argument("--now", help='假裝現在是這個時間（"2026-11-02 09:25" 台北時間，或帶 Z 的 ISO）')
 
-    p = sub.add_parser("run", help="replay the plan: 10,000 simulated sessions plus the history")
+    p = sub.add_parser("run", help="重播計畫：10,000 次模擬加上歷史")
     common(p)
     p.add_argument("--json", action="store_true")
     p.add_argument("--write", nargs="?", const="trader/timemachine.json", metavar="PATH",
-                   help="save the result (default trader/timemachine.json)")
-    p = sub.add_parser("chart", help="ASCII fan chart of the replays")
+                   help="存下結果（預設 trader/timemachine.json）")
+    p = sub.add_parser("chart", help="重播路徑的 ASCII 扇形圖")
     common(p)
     p.add_argument("--from", dest="from_file", nargs="?", const="trader/timemachine.json", metavar="PATH",
-                   help="draw a saved result instead of running again")
+                   help="畫存好的結果，不重跑")
     a = ap.parse_args(argv)
     if not a.cmd:
         ap.print_help()

@@ -1,132 +1,139 @@
 ---
 name: trader-exit
 description: >-
-  Exit Planner. Sets your stop and your target before you enter, so you know
-  when to get out. Reads the entry from trader-entry (or a price you give),
-  puts the stop at the opening-range midpoint by default (or the range low,
-  your price, a percent, or a multiple of the ATR), rounds it down to the
-  cent, and sets the target at 2R (or 1R, or your price). Refuses a stop at or
-  above the entry, a target at or below it, or a stop too tight to survive the
-  spread, and says why. Writes trader/plan.json for the Time Machine, the
-  Budget Manager and Price Alerts. Long side only. Use when the user says
-  "where's my stop", "set my stop and target", "plan the exit", "when do I get
-  out", "stop loss", "what's my R", "risk reward", or right after
-  /trader-entry triggers, before /trader-timemachine.
+  出場規劃（Exit Planner）。進場前先設好停損和停利，你就知道什麼時候出場。
+  讀 trader-entry 的進場紀錄（或你給的價格），預設把停損放在開盤區間中點（也可以用
+  區間低點、你的價格、百分比或 ATR 倍數），停損往下取到升降單位，停利預設 2R（或 1R、
+  你的價格）取到最近的升降單位。對照今天的漲停價和跌停價，算出手續費加當沖證交稅
+  占幾 R，以及扣成本後的報酬風險比。停損在進場價以上、停利在進場價以下、停損只差
+  不到 2 檔、停利高過漲停、停損低過跌停，一律拒絕並說明原因。寫出 trader/plan.json
+  給 Time Machine、Budget Manager 和 Price Alerts。台股上市、上櫃股票和 ETF，只做多。
+  使用時機：使用者說「停損設哪裡」「幫我設停損停利」「規劃出場」「什麼時候出場」
+  「停損」「風險報酬比」「R 是多少」「where's my stop」「set my stop and target」
+  「plan the exit」，或 /trader-entry 觸發之後、/trader-timemachine 之前。
 argument-hint: "[--stop or-mid|or-low|price:X|pct:X|atr:K] [--target 2R|1R|price:X]"
 ---
 
 # trader-exit
 
-The Exit Planner decides how a trade ends before it starts. The stop is where
-the setup has failed. The target is where you take what you came for. Both
-are set BEFORE the entry, written down and handed on, so nobody has to decide
-anything in the middle of a fast move. A stop is a plan, not a guarantee: a
-gap or a fast market can fill past it. Day trading loses most people money,
-and a neat plan does not change that.
+出場規劃在交易開始前就決定它怎麼結束。停損是這個型態失敗的位置，停利是你要拿走的
+那一段。兩個都在進場前設好、寫下來、交給下一步，盤中急漲急殺時就不用臨時做決定。
+停損是計畫，不是保證：跳空、急殺或跌停鎖死時，成交價可能比停損差，甚至賣不掉。
+多數當沖的人是賠錢的，一份整齊的計畫不會改變這件事。
 
-`${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
+`${CLAUDE_SKILL_DIR}` 是這個 skill 的資料夾（這份 SKILL.md 所在的地方）。
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/exit.py" plan                          # trader/entry.json: midpoint stop, 2R target
+python3 "${CLAUDE_SKILL_DIR}/exit.py" plan                                   # trader/entry.json：中點停損、2R 停利
 python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --stop or-mid --target 1R --write
-python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --stop atr:1.5           # needs the session's bars (Yahoo or --offline)
-python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --symbol TSLA --entry 364.18 --or-high 362.18 --or-low 354.47
-python3 "${CLAUDE_SKILL_DIR}/exit.py" show                          # the current trader/plan.json
+python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --stop atr:1.5                    # 需要當天的 K 棒（Yahoo 或 --offline）
+python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --symbol 2303 --entry 110 --or-high 109.5 --or-low 107.5
+python3 "${CLAUDE_SKILL_DIR}/exit.py" plan --symbol 0050 --entry 104.1 --setup level --stop pct:1
+python3 "${CLAUDE_SKILL_DIR}/exit.py" show                                   # 目前的 trader/plan.json
 ```
 
-Other flags: `--flat-by 15:55`, `--json`, `--now "2026-10-19 10:15"` (New
-York time), `--entry PRICE` with a waiting entry.json to plan ahead, `--setup
-level`, `--offline FILE` (a saved Yahoo chart JSON for an ATR stop).
+其他參數：`--flat-by 13:20`、`--json`、`--now "2026-11-02 09:21"`（台北時間）、
+`--entry PRICE`（entry.json 還在等待時先規劃）、`--setup level`、`--mis FILE`（存下來
+的證交所 MIS 報價，當天的漲跌停價）、`--prev-close X`（用昨收算 ±10% 漲跌停）、
+`--offline FILE`（存下來的 Yahoo 圖表，給 ATR 停損和昨收，不連網）。代號可以寫
+`2303`、`2303.TW` 或 `6488.TWO`。
 
-## What it reads and writes
+## 讀寫的檔案
 
-| file | what |
+| 檔案 | 內容 |
 | --- | --- |
-| `trader/entry.json` | the trigger from trader-entry: symbol, entry price, time, bar, opening range |
-| `trader/config.json` | `flat_by` (15:55) and `min_reward_risk` (1.0: a note here, trader-risk enforces it) |
-| Yahoo chart API | only for an `atr:K` stop: the session's bars up to the entry bar, free and unofficial |
-| `trader/plan.json` | with `--write`: entry, stop and its rule, target and its R, risk a share, reward:risk, flat by. trader-timemachine, trader-budget and trader-alerts read it |
+| `trader/entry.json` | trader-entry 的觸發紀錄：代號、市場、名稱、進場價、時間、K 棒編號、開盤區間 |
+| `trader/config.json` | `flat_by`（13:20）、`min_reward_risk`（1.0，這裡只提醒，trader-risk 才擋）、手續費 `fee_discount`（1 是不打折，0.6 是 6 折）、`extra_closed`（颱風停止交易的日子） |
+| `trader/universe.txt` | trader-scanner 寫的股票清單：沒寫市場時用來查上市或上櫃、名稱 |
+| 證交所 MIS 報價 | 今天的漲停價和跌停價（線上只查得到今天；離線用 `--mis`） |
+| Yahoo 圖表 | ATR 停損要用當天到進場為止的 K 棒，以及昨收；免費、非官方、可能延遲 |
+| `trader/plan.json` | 加 `--write` 才寫：進場、停損和規則、停利和 R、每股風險和檔數、報酬風險比、漲跌停、每股成本、成本 R、扣成本後報酬風險比、最晚出場。trader-timemachine、trader-budget、trader-alerts 會讀它 |
 
-## Stops and targets
+## 停損和停利
 
-| stop | where it goes |
+| 停損 | 放在哪裡 |
 | --- | --- |
-| `or-mid` | the opening-range midpoint (the default for an opening-range breakout) |
-| `or-low` | the opening-range low: wider, so fewer shares for the same max loss |
-| `price:X` | your price |
-| `pct:X` | X percent under the entry |
-| `atr:K` | K times the 14-bar ATR under the entry, on the session's bars up to the entry bar. With fewer than 14 bars by then it averages all of them and says so |
+| `or-mid` | 開盤區間中點（開盤區間突破的預設） |
+| `or-low` | 開盤區間低點：比較寬，同樣的最大虧損買得比較少 |
+| `price:X` | 你的價格 |
+| `pct:X` | 進場價下方 X% |
+| `atr:K` | 進場價下方 K 倍的 14 根 ATR，算到進場那根為止。進場前還不到 14 根就全部平均，並且說出來 |
 
-A level setup has no opening range to lean on, so it needs a stop you name.
+收盤站上關卡價（level）的型態沒有開盤區間可以靠，要你指定停損。
 
-- **Rounding.** The stop rounds AWAY from the entry to the cent (down, for a
-  long). Risk = entry minus stop. Target = entry + R x risk, rounded half up
-  to the cent. `2R` by default; `1R`, `1.5R` or `price:X` also work.
-- **Refused, with the reason.** A stop at or above the entry. A target at or
-  below it. A risk under 0.05% of the price: too tight to survive the
-  spread, normal wiggle would stop you out. An entry.json that has not
-  triggered (unless you give `--entry`). A short: v2 plans longs only.
-- **Flat by.** 15:55 by default (or `flat_by` in the config). Out by then,
-  win or lose, no overnight hold. On a 1:00 p.m. early close it moves up to
-  12:55. An entry at or after the flat-by time is refused.
+- **升降單位。** 每個價格都要落在升降單位上：股票未滿 10 元是 0.01，10 到 50 元是
+  0.05，50 到 100 元是 0.1，100 到 500 元是 0.5，500 到 1000 元是 1，1000 元以上是 5；
+  ETF 未滿 50 元是 0.01，50 元以上是 0.05。停損往下取（離進場價遠一點），停利 =
+  進場價 + R x 風險，取到最近的升降單位（四捨五入）。你給的價格不在升降單位上，
+  照同樣的方向取，並且說出來。停利取整之後實際的 R 會不同，也會說出來。
+- **拒絕並說明原因。** 停損在進場價或以上；停利在進場價或以下；停損只差不到 2 檔
+  （「停損只差 1 檔，正常跳動就會掃到」）；停利高過今天的漲停價（碰不到）；停損低過
+  今天的跌停價（跌不破跌停，停損永遠不會觸發，跌停鎖死時也賣不掉）；進場價已經在
+  漲停價；entry.json 還沒觸發（除非你給 `--entry`）；進場時間在最晚出場之後；放空。
+- **漲跌停。** 優先用 MIS 報價的漲停價和跌停價；沒有就用昨收 ±10% 算（漲停往下取、
+  跌停往上取到升降單位；2 倍槓桿 ETF 是 ±20%）。除權息日的參考價不是昨收，國外成分
+  ETF 沒有漲跌幅限制，這兩種以 MIS 或券商顯示為準。查不到時照樣規劃，但會說沒對照。
+- **成本。** 手續費 0.1425% 買賣各一次（照 `fee_discount` 打折）加當沖證交稅 0.15%
+  （ETF 是 0.1%；當沖減半到 2027-12-31 為止），用進場價算每股成本，換算成幾 R，再算
+  扣成本後的報酬風險比 =（停利 - 進場 - 成本）/（風險 + 成本）。成本到 0.25R 以上就
+  提醒：停損越近，成本占的比例越大。
+- **最晚出場。** 預設 13:20（或設定檔的 `flat_by`），不論輸贏都出場，不留倉。13:25 到
+  13:30 是收盤集合競價，不連續撮合，設在這段會提醒；13:30 或之後直接拒絕。
+- **零股。** 這份計畫是整股當沖。零股目前不能現股當沖：今天買的零股最快下一個交易日
+  才能賣，當天的停損和停利都用不上。
 
-## Steps
+## 步驟
 
-1. Run it right after `/trader-entry` triggers. Before that, `--entry PRICE`
-   plans ahead at the level you expect.
-2. Use the default stop for an opening-range breakout unless the user names
-   another. A level setup needs one: ask.
-3. Run `exit.py plan --write`. Read back the entry, the stop and its rule,
-   the target and its rule, the risk a share, reward:risk and flat by.
-4. If it refuses, say the reason and the fix (a wider stop, a farther
-   target). Never loosen anything on your own.
-5. Say once that the stop is a plan, not a guarantee.
-6. Hand off to `/trader-timemachine` to replay the plan, then `/trader-budget`
-   to size it to the max loss per trade. Offer `/trader-alerts` for the stop,
-   the target and the flat-by time. Claude can keep `entry.py watch` running
-   in the background or on a `/loop` until a setup triggers, then come here.
+1. /trader-entry 觸發後馬上跑。還沒觸發時，用 `--entry PRICE` 在預期的價位先規劃。
+2. 開盤區間突破用預設的停損，除非使用者指定別的。收盤站上關卡價的型態一定要問停損。
+3. 跑 `exit.py plan --write`。把進場、停損和規則、停利和規則、每股風險和檔數、報酬
+   風險比、成本那一行、漲跌停、最晚出場唸給使用者聽。成本提醒照工具印的說，不要
+   改寫。
+4. 被拒絕時，說原因和解法（停損放遠一點、停利放近一點、等明天）。絕不自己放寬任何
+   東西。
+5. 說一次：停損是計畫，不是保證。
+6. 交給 `/trader-timemachine` 重播這份計畫，再交給 `/trader-budget` 依單筆最大虧損算
+   股數（成本要算進去）。也可以用 `/trader-alerts` 設停損、停利和最晚出場的提醒。
 
-## Example: the reel
+## 範例：聯電 2026-11-02
 
-TSLA, Monday 2026-10-19. The entry is 364.18 at 10:15 AM (the 10:10 bar,
-bar 8) and the opening range is 354.47 to 362.18. `exit.py plan --stop
-or-mid --target 1R --write`:
+聯電 2303，2026-11-02（一）。開盤區間（09:00、09:05、09:10 三根 5 分 K）是 107.5 到
+109.5，09:15 那根收 110.0，在 09:20 觸發。`exit.py plan --stop or-mid --target 1R --write`：
 
 ```
-Exit plan: TSLA long, Mon 2026-10-19, opening-range breakout on 5-minute bars
-  Entry         $364.18 at 10:15 AM (bar 8)
-  Stop          $358.32  opening-range midpoint: ($362.18 + $354.47) / 2 = $358.325, rounded down
-  Target        $370.04  1R (one times the risk)
-  Risk a share  $5.86 (1.61% of the entry)
-  Reward:risk   1.0
-  Flat by       15:55 ET, win or lose: no overnight hold
+出場計畫：聯電 2303 做多，2026-11-02（一），開盤區間突破，5 分 K
+  進場          110.0，09:20（09:15 那根 K 棒收盤，編號 3）
+  停損          108.5  開盤區間中點：(109.5 + 107.5) / 2 = 108.5
+  停利          111.5  1R（一倍風險）
+  每股風險      1.5（進場價的 1.36%，3 檔）
+  報酬風險比    1.0
+  成本          每股約 0.48（手續費 0.1425% 買賣各一次、當沖證交稅 0.15%），約 0.32R；扣成本後報酬風險比 0.52
+  漲跌停        122.5 / 100.5（MIS 報價）
+  最晚出場      13:20，不論輸贏都出場，不留倉
+注意：成本約 0.32R：停損只有 3 檔時，手續費加證交稅占了每股風險的 32%。扣成本後的報酬風險比是 0.52，不是 1.0。停損越近，成本占的比例越大。
 ```
 
-The default 2R target would be 364.18 + 2 x 5.86 = 375.90. trader-budget then
-sizes it: a $50 max loss per trade buys floor(50 / 5.86) = 8 shares.
+這是台股當沖最常見的一課：聯電一檔 0.5 元，停損只差 3 檔，每股 1.5 元的風險裡有
+0.48 元是成本。表面上 1R，扣掉成本只剩 0.52。預設的 2R 停利是 110.0 + 2 x 1.5 = 113.0，
+扣成本後報酬風險比 1.27。改用 `--stop atr:1.5`（當天到 09:15 為止 4 根 K 棒，ATR 1.625）
+停損是 107.5，風險 2.5（5 檔），成本降到 0.19R。那天 09:40 那根的低點正好碰到 108.5。
 
-## Rules
+## 規則
 
-- The stop and the target are set before the entry, never after.
-- Never move a stop further from the entry once the trade is on.
-- Plain numbers only: entry, stop, target, risk a share, reward:risk. It
-  never prints a P&L or a return.
-- Nothing here promises winning trades or money. A 1R target is not a
-  prediction that the price gets there.
-- Long side only. v2 plans longs only.
+- 停損和停利在進場前設好，不在進場後才決定。
+- 部位建立後，停損絕不往遠離進場價的方向移。
+- 只印數字：進場、停損、停利、每股風險、報酬風險比、成本。不印損益，也不印報酬率。
+- 這裡沒有任何東西保證交易會贏。1R 停利不是預測價格會到那裡。
+- 只做多。這一版只規劃做多。
 
-## What it never does
+## 不做的事
 
-It never places an order, never sizes a position, never widens a stop to
-make a plan pass, and never calls a stop a guarantee.
+不下單、不算股數、不為了讓計畫通過而放寬停損，也不說停損是保證。
 
-## Safety
+## 安全
 
-- Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+- 這是教學與工具，不構成投資建議。PASS 只代表通過規則檢查，不是推薦。
+- 預設模擬交易（`"paper": true`）。要不要動用真錢，由使用者自己在自己的設定檔決定。
+- 這套 skill 不會自己下單。只有 trader-broker 會產生委託單，而且三件事都成立才會：trader-risk 今天通過了這一張單、使用者在對話中針對這一張單明確回覆 yes、使用者自己在券商 App 或下單軟體送出。
+- 不做融資、融券、先賣後買、選擇權或期貨，除非設定檔開啟而且使用者確認。
+- 券商帳號、密碼和憑證不在對話裡出現，也不寫進任何檔案。

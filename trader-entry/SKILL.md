@@ -1,144 +1,153 @@
 ---
 name: trader-entry
 description: >-
-  Entry Timer. Watches a setup bar by bar and tells you the moment to get in.
-  Reads free Yahoo 1-minute or 5-minute bars, builds the opening range (the
-  first 15 minutes by default) and calls the entry on the first completed bar
-  that CLOSES above the range high, or above a level you give it (like a
-  20-day high from the scanner), with an optional volume check. Says waiting
-  and how far, triggered with the time and the price, expired, or not open
-  yet, and writes trader/entry.json for /trader-exit. Long side only. It never
-  places an order. Use when the user says "tell me when to get in", "watch
-  TSLA", "has it broken out", "did it break the opening range", "entry
-  signal", "time my entry", "check my watchlist", or after /trader-scanner
-  and /trader-news, before /trader-exit.
-argument-hint: "[TICKER] [--setup orb|level] [--interval 5m|1m]"
+  進場計時器（Entry Timer）。一根一根 K 棒盯著一個型態，告訴你進場的那一刻。讀 Yahoo
+  免費的台股 1 分 K 或 5 分 K（上市 .TW、上櫃 .TWO），算出開盤區間（預設 09:00 到 09:15），
+  第一根「收盤」站上區間高點（或你給的價位，例如掃描器的 20 日新高）的 K 棒就是進場點，
+  也可以加量能條件。回報等待中還差幾元幾檔、觸發的時間和價格、過期或還沒開盤，並寫入
+  trader/entry.json 交給 /trader-exit。收在漲停價會提醒可能買不到。只做多，從不下單。
+  使用時機：使用者說「告訴我什麼時候進場」「幫我盯 2303」「突破了沒」「開盤區間突破了嗎」
+  「進場訊號」「幫我抓進場點」「看一下觀察清單」，或說 "watch 2330"、"entry signal"、
+  "time my entry"，或在 /trader-scanner 和 /trader-news 之後、/trader-exit 之前。
+argument-hint: "[代號] [--setup orb|level] [--interval 5m|1m]"
 ---
 
 # trader-entry
 
-The Entry Timer turns a setup into one moment: the bar that confirms it. It
-reads bars, 1-minute or 5-minute, and waits for each one to finish. A price
-that pokes above the high in the middle of a bar is not an entry. A bar that
-CLOSES above it is. Then it says the time and the price, writes them down for
-the Exit Planner, and stops. It never buys anything. Day trading loses most
-people money, and a clean signal does not change that.
+進場計時器把一個型態變成一個時間點：確認型態的那一根 K 棒。它讀 1 分 K 或 5 分 K，
+每一根都等它收完。盤中價格衝過高點又縮回來，不算進場；收盤站上去的那一根才算。
+觸發之後它說出時間和價格，寫下來交給停損停利規劃，然後就停。它不會買任何東西。
+大多數當沖的人是賠錢的，一個乾淨的訊號改變不了這件事。
 
-`${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
+下面的 `${CLAUDE_SKILL_DIR}` 是這個 skill 的資料夾（這份 SKILL.md 所在的位置）。
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/entry.py" check TSLA                  # 15-minute opening range, 5-minute bars
-python3 "${CLAUDE_SKILL_DIR}/entry.py" check TSLA --write          # also save trader/entry.json
-python3 "${CLAUDE_SKILL_DIR}/entry.py" check TSLA --setup level --level 371.20
-python3 "${CLAUDE_SKILL_DIR}/entry.py" check TSLA --interval 1m --min-volume-x 1.5
-python3 "${CLAUDE_SKILL_DIR}/entry.py" watch TSLA --until 15:30    # one line per closed bar, stops on the trigger
-python3 "${CLAUDE_SKILL_DIR}/entry.py" watchlist                   # every hit in trader/watchlist.json
+python3 "${CLAUDE_SKILL_DIR}/entry.py" check 2303                  # 15 分鐘開盤區間，5 分 K
+python3 "${CLAUDE_SKILL_DIR}/entry.py" check 2303 --write          # 同時存成 trader/entry.json
+python3 "${CLAUDE_SKILL_DIR}/entry.py" check 2303 --setup level --level 111.5
+python3 "${CLAUDE_SKILL_DIR}/entry.py" check 6488.TWO --interval 1m --min-volume-x 1.5
+python3 "${CLAUDE_SKILL_DIR}/entry.py" watch 2303 --until 13:00    # 每收一根印一行，觸發就停
+python3 "${CLAUDE_SKILL_DIR}/entry.py" watchlist                   # trader/watchlist.json 裡每一檔
+python3 "${CLAUDE_SKILL_DIR}/entry.py" watch 2303 --source mis --every 10 --until 13:00   # MIS 快照，不等 Yahoo
 ```
 
-Other flags: `--or-minutes N` (default 15), `--json`, `--offline FILE` (a
-saved Yahoo chart JSON, `.json` or `.json.gz`, or a folder of
-`<TICKER>.json`), `--now "2026-10-19 10:15"` (New York time) to replay a day.
-`watch` with `--now` or `--offline` runs on a simulated clock and replays the
-day bar by bar without waiting.
+## 盤中不等 Yahoo：`--source mis`
 
-## What it reads and writes
+Yahoo 的台股盤中 K 棒延遲約 20 分鐘：09:20 收的那根要 09:40 左右才看得到（2026-11-03 實測）。
+`--source mis` 改讀證交所 MIS 的盤中快照（通常只差幾秒，開盤後幾分鐘可能落後一兩分鐘），
+09:15 剛過就知道開盤區間，K 棒收盤則要看 MIS 有沒有給到價格。
 
-| file | what |
+- **開盤區間** 是 09:15 剛過那張快照裡的當日最高和最低。09:15 之前的最後一張快照已經是同樣的
+  高低點，區間就是準的；不然最多多含一分鐘內的成交，輸出會說明。09:16 之後才第一次抓，
+  最高最低可能含了區間之後的成交，就不能用，要改看 Yahoo（約 09:40 之後）。
+- **收盤價** 是 K 棒結束前的最後一筆成交，但 MIS 只在部分快照給成交價（2026-11-04 開盤後約
+  十二張一張），沒給價格的成交照樣在發生。所以收盤要靠成交量證明：有價格的那張快照之後，
+  K 棒結束後的快照成交量還是一樣，中間沒有成交，收盤才是準的。結束前一分鐘內的成交只能代替
+  收盤，輸出會說「收盤價可能不一樣」。兩張快照成交量一樣，中間的 K 棒就是沒有成交。
+  看不到收盤的 K 棒會列出來：那幾根的突破看不到。
+- **成交熱絡的股票，MIS 常常看不到收盤**；冷門股反而容易證明。讓 `watch --source mis --every 10`
+  在 09:15 之前開始跑，能多看到幾根（`--every` 至少 5 秒，MIS 是證交所的公開網站，不要問太快）。
+- 每次抓到的快照存在 `trader/state/mis-日期.json`。`--now` 用這份紀錄重播當天，`--offline` 可以指定別的紀錄檔。
+- MIS 沒有每根 K 棒的成交量，所以 `--source mis` 不能加 `--min-volume-x`。
+- 寫入的 `trader/entry.json` 標 `"source": "mis"`，/trader-exit 照常讀。
+
+其他參數：`--or-minutes N`（預設 15）、`--json`、`--offline FILE`（存下來的 Yahoo
+線圖 JSON，`.json` 或 `.json.gz`，或放 `<代號>.json` 的資料夾）、`--now "2026-11-02 09:20"`
+（台北時間）重播某一天。`watch` 加上 `--now` 或 `--offline` 會用模擬時鐘，不用等，一根一根重播。
+
+代號可以寫 `2303`、`2303.TW`（上市）或 `6488.TWO`（上櫃）。只寫數字時，先查
+`trader/universe.txt`（/trader-scanner 會寫），查不到就先問 Yahoo 的 .TW，沒有資料再問 .TWO。
+
+## 讀什麼、寫什麼
+
+| 檔案 | 內容 |
 | --- | --- |
-| `trader/watchlist.json` | the scanner's hits (`hits[].symbol`), for `watchlist` |
-| `trader/config.json` | `no_entries_before` (09:45) and `no_entries_after` (15:30), New York time. Optional |
-| Yahoo chart API | today's bars, `range=1d&interval=5m` (or `1m`): free, unofficial, can lag |
-| `trader/entry.json` | with `check --write`, or when `watch` triggers: symbol, setup, status, time, bar, price, level, opening range |
+| `trader/watchlist.json` | 掃描器命中的股票（`hits[].symbol`、`market`、`name`），給 `watchlist` 用 |
+| `trader/universe.txt` | 代號對應的市場和名稱（trader-scanner 寫的），選用 |
+| `trader/config.json` | `no_entries_before`（09:15）和 `no_entries_after`（13:00），台北時間；`extra_closed` 放颱風假。選用 |
+| Yahoo 線圖 API | 當天的 K 棒，`range=1d&interval=5m`（或 `1m`）：免費、非官方、盤中延遲約 20 分鐘 |
+| 證交所 MIS（`--source mis`） | 盤中快照（通常只差幾秒）：當日最高最低和成交量、最後一筆有給價格的成交和時間、委買委賣 |
+| `trader/state/mis-日期.json` | `--source mis` 每次抓到的快照，重播用 |
+| `trader/entry.json` | `check --write` 或 `watch` 觸發時寫入：代號、市場、名稱、型態、狀態、時間、bar、價格、水準、開盤區間 |
 
-## The rule
+## 判斷規則
 
-- **Opening range (orb).** The high and low of the first 15 minutes: the
-  9:30, 9:35 and 9:40 five-minute bars, or fifteen 1-minute bars. The level
-  to beat is the range high.
-- **Level.** A price you give, like a 20-day high from `/trader-scanner`.
-- **The trigger** is the first completed bar after the range that CLOSES
-  above the level. A wick above is not a trigger. A close exactly at the
-  level is not above it.
-- **The time** is that bar's close time (the 10:10 bar closes at 10:15 AM).
-  The price is its close, to the cent.
-- **Only closed bars count.** A bar is closed when the clock passes its start
-  plus 5 (or 1) minutes and Yahoo has caught up to that moment (it waits a
-  minute at most). Yahoo's live tick, like 10:49:45, is never a bar.
-- **Volume, if you want it.** `--min-volume-x 1.5` also needs the trigger
-  bar's volume at 1.5 times the range bars' average. The 9:30 bar holds the
-  opening auction, so 1.0 is already strict.
-- **Time limits.** No entries before 9:45 or after 15:30 (config). On a 1:00
-  p.m. early close the cutoff moves up with the close, to 12:30.
-- **What it says.** Waiting (and how far the last close is from the level),
-  triggered, expired, or no data. Before 9:30: not open yet. Before 9:45: the
-  range is still forming. Weekends and NYSE holidays: the market is closed.
+- **開盤區間（orb）。** 前 15 分鐘的高點和低點：09:00、09:05、09:10 三根 5 分 K，
+  或十五根 1 分 K。要突破的水準就是區間高點。
+- **水準（level）。** 你給的價格，例如 /trader-scanner 找到的 20 日新高。
+- **觸發** 是區間之後第一根「收完、而且收盤價高於水準」的 K 棒。影線碰到不算，收盤剛好等於水準也不算。
+- **時間** 是那根 K 棒的收盤時間（09:15 那根在 09:20 收）。**價格** 是它的收盤價，落在升降單位上。
+- **只算收完的 K 棒。** 時鐘過了開始時間加 5（或 1）分鐘，而且 Yahoo 的資料跟上了（最多等一分鐘），
+  那根才算收完。Yahoo 盤中最新那一筆（像 10:49:45）永遠不算一根 K 棒。
+- **只算連續交易的 K 棒。** 13:25 到 13:30 是收盤集合競價：Yahoo 的 13:25 那根是空的，
+  當天另外多一筆 13:30 的收盤價、量是 0，兩個都不算 K 棒。
+- **量能，想要就加。** `--min-volume-x 1.5` 要求觸發那根的量至少是區間 K 棒平均量的 1.5 倍。
+  09:00 那根含開盤集合競價，量特別大，所以 1.0 就已經很嚴格。
+- **時間限制。** 09:15 之前、13:00 之後不新進場（設定檔可改）。台股沒有半日市。
+- **漲停。** 觸發那根如果收在漲停價，它會多說一句：漲停鎖住時買單可能排隊也買不到。
+- **狀態。** 等待（還差幾元、幾檔）、觸發、過期、沒有資料。09:00 之前是還沒開盤；09:15 之前是
+  開盤區間形成中；週末、國定假日、颱風假是休市。
 
-## Steps
+## 步驟
 
-1. Get the symbol from the user, or run `entry.py watchlist` after
-   `/trader-scanner`. Check `/trader-news` for it first.
-2. Run `entry.py check SYMBOL`. Tell the user the status in one line:
-   waiting and how far, triggered at what time and price, or expired.
-3. To wait for it, Claude can run `entry.py watch SYMBOL --until 15:30` in
-   the background, or `entry.py check SYMBOL --write` on a `/loop` every 5
-   minutes. `watch` wakes just after each bar closes, prints one line per
-   bar, and exits 0 on the trigger (it writes `trader/entry.json`) or 1 when
-   the setup expires. Keep the computer awake while it watches: a sleeping
-   laptop pauses it, and it catches up, late, when it wakes.
-4. When it triggers, say the time and the price, and that nothing was placed.
-   If the trigger is more than a bar old, say that too: a late entry is a
-   different trade.
-5. Hand off to `/trader-exit` to set the stop and the target BEFORE anything
-   is bought.
+1. 跟使用者確認代號，或在 /trader-scanner 之後跑 `entry.py watchlist`。先用 /trader-news 看過這檔。
+2. 跑 `entry.py check 代號`，用一句話告訴使用者狀態：等待中還差多少、幾點觸發在什麼價格、或已經過期。
+3. 要等它觸發，Claude 可以在背景跑 `entry.py watch 代號 --until 13:00`，或用 `/loop` 每 5 分鐘跑一次
+   `entry.py check 代號 --write`。盤中不想等 Yahoo 的 20 分鐘，就在 09:15 之前開始 `entry.py watch 代號 --source mis --every 10 --until 13:00`。`watch` 在每根 K 棒收完後醒來，每根印一行，觸發時結束、回傳 0
+   （寫入 `trader/entry.json`），過期則回傳 1。盯盤的時候電腦不要睡著：筆電睡著它就暫停，醒來才補上，已經晚了。
+4. 觸發時說出時間和價格，並說明什麼單都沒有下。如果觸發已經是一根 K 棒以前的事，也要說：晚進場是另一筆交易。
+5. 交給 /trader-exit，在買進「之前」先設好停損和停利。
 
-## Example: the reel
+## 範例：聯電 2026-11-02
 
-TSLA, Monday 2026-10-19, 5-minute bars. The opening range is 354.47 to
-362.18. At 10:12 the 10:10 bar is still open, so it waits:
+聯電 2303（上市），2026-11-02（一），5 分 K。開盤區間 107.5 到 109.5。09:17 的時候 09:15
+那根還沒收完，所以等待：
 
 ```
-WAITING  last close $361.68 (10:05 bar), $0.50 under the range high $362.18 (-0.14%).
-The 10:10 bar is still forming ($364.18 so far, closes 10:15 AM); it does not count until it closes.
+2303 聯電  2026-11-02（一） 09:17 台北  開盤區間突破（15 分鐘區間），5 分 K（Yahoo 免費資料，可能延遲）
+開盤區間 09:00-09:15：高點 109.5，低點 107.5（3 根 K 棒收了 3 根）。
+等待  最後收盤 109.0（09:10 K 棒），距開盤區間高點 109.5 還差 0.5 元（1 檔，-0.46%）。
+09:15 K 棒還在走（目前 110.0，09:20 收盤）；收盤前不算數。
 ```
 
-At 10:15 the bar has closed:
+09:20 那根收完了：
 
 ```
-TSLA  Mon 2026-10-19 10:15 ET  opening-range breakout (15-minute range) on 5-minute bars (Yahoo, free, can lag)
-Opening range 9:30-9:45: high $362.18, low $354.47 (3 of 3 bars).
-TRIGGERED 10:15 AM at $364.18: the 10:10 bar (bar 8) closed above the range high $362.18 (+0.55%).
-This is the moment to get in, if you take the trade. Nothing was placed.
-Next: set the stop and target BEFORE you buy: /trader-exit (exit.py plan --from trader/entry.json).
+2303 聯電  2026-11-02（一） 09:20 台北  開盤區間突破（15 分鐘區間），5 分 K（Yahoo 免費資料，可能延遲）
+開盤區間 09:00-09:15：高點 109.5，低點 107.5（3 根 K 棒收了 3 根）。
+觸發  09:20，價格 110.0：09:15 K 棒（bar 3）收在開盤區間高點 109.5 之上（+0.46%）。
+如果你要做這筆交易，現在就是進場時機。什麼單都沒有下。
+下一步：買進之前先設好停損和停利：/trader-exit（exit.py plan --from trader/entry.json）。
 ```
 
-With `--min-volume-x 1` the 10:10 bar is too thin (0.60x the range's volume)
-and the trigger moves to 10:35 AM at 365.75 (the 10:30 bar, 7.98x).
+`trader/entry.json` 寫的是 `"time": "09:20"`、`"bar_start": "09:15"`、`"bar_index": 3`、
+`"price": 110.0`、`"level": 109.5`、開盤區間 `{"high": 109.5, "low": 107.5, "minutes": 15}`，
+加上 `"market": "TWSE"` 和 `"name": "聯電"`。
 
-## Rules
+換成 1 分 K，區間一樣是 107.5 到 109.5（15 根），觸發在 09:19、價格 110.0（09:18 那根，bar 18）。
+加上 `--min-volume-x 1`，09:15 那根的量只有區間均量的 0.94 倍，不算；之後整天沒有一根夠量，
+到 13:00 就過期。原因是 09:00 那根含開盤集合競價，把區間均量拉得很高。
 
-- Bar by bar, on free Yahoo 1-minute or 5-minute bars. They are unofficial
-  and can lag. Say so when a minute matters.
-- A signal is information, not an order, and not a promise. Nothing here
-  promises winning trades or money.
-- Long side only. v2 plans longs only. If the user wants a short, say that.
-- One trigger per setup per day: the first close above. Later closes do not
-  reset it.
-- Never call an entry early because a bar looks like it will close above.
+## 原則
 
-## What it never does
+- 一根一根看，用的是 Yahoo 免費的 1 分 K 或 5 分 K，非官方、可能延遲。差一分鐘有關係的時候要講。
+- 訊號是資訊，不是委託單，也不是承諾。這裡沒有任何東西說交易一定會賺。
+- 只做多。使用者想放空或先賣後買，直接說目前不做。
+- 一個型態一天只觸發一次：第一根收上去的。之後再收上去不會重來。
+- 不會因為一根 K 棒「看起來會收上去」就提早喊進場。
+- 處置股每幾分鐘才撮合一次，5 分 K 會缺棒、很稀，訊號參考價值低；/trader-scanner 預設就把它們排除。
+- 零股目前不能現股當沖：今天買的零股，最快下一個交易日才能賣。訊號不分整股零股，但這套流程是當天出場的當沖，
+  用零股就變成隔日沖了。盤中零股也要到 09:10 才第一次撮合。
 
-It never places an order, never sizes a position, never sets the stop (that
-is `/trader-exit`), never moves the level after the fact, and never counts a
-bar that has not closed. It never runs `/trader-broker` from a background
-watch: nobody is there to say yes.
+## 不做的事
 
-## Safety
+它不下單、不算股數、不設停損（那是 /trader-exit 的事）、不在事後移動水準、不算還沒收完的 K 棒。
+它也不會在背景盯盤時去跑 /trader-broker：背景裡沒有人能說 yes。
 
-- Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+## 安全
+
+- 這是教學與工具，不構成投資建議。PASS 只代表通過規則檢查，不是推薦。
+- 預設模擬交易（`"paper": true`）。要不要動用真錢，由使用者自己在自己的設定檔決定。
+- 這套 skill 不會自己下單。只有 trader-broker 會產生委託單，而且三件事都成立才會：trader-risk 今天通過了這一張單、使用者在對話中針對這一張單明確回覆 yes、使用者自己在券商 App 或下單軟體送出。
+- 不做融資、融券、先賣後買、選擇權或期貨，除非設定檔開啟而且使用者確認。
+- 券商帳號、密碼和憑證不在對話裡出現，也不寫進任何檔案。

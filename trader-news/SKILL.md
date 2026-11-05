@@ -1,104 +1,125 @@
 ---
 name: trader-news
 description: >-
-  News Monitor. Tracks breaking news on every stock you watch and flags what
-  moves it: Yahoo Finance headlines per ticker, each company's 8-K filings on
-  SEC EDGAR (earnings, CEO changes, deals, restatements, bankruptcy) and how
-  far each stock is from yesterday's close. Shows only what is new since the
-  last check, newest first, in New York time, tags each item (earnings,
-  analyst, deal, halt, regulatory, macro...) and never repeats one. Use when
-  the user says "any news on TSLA", "why is this moving", "what's the news on
-  my watchlist", "morning briefing", "pre-market news", "monitor the news",
-  "did anything break", "check the 8-Ks", or after /trader-scanner finds setups.
-argument-hint: "[tickers]"
+  新聞監控（台股）。追蹤你關注的每一檔股票的最新消息，並標出會影響股價的：Yahoo股市的個股新聞、
+  Google 新聞（各家媒體）、公開資訊觀測站的重大訊息（財務報告、營收、法說會、董事會決議、股利、
+  庫藏股、澄清媒體報導、暫停交易），以及每檔股票今天離昨收多遠（證交所 MIS 報價，漲停、跌停直接標出）。
+  只列出上次檢查之後的新消息，最新的在最上面，用台北時間，每則加上標籤（財報、營收、法說會、
+  評等目標價、法人買賣超、處置／注意股、風險、總經……），同一則故事只出現一次。使用時機：使用者說
+  「聯電有什麼新聞」「幫我看新聞」「重大訊息」「盤前新聞」「為什麼在跌」「為什麼漲停」「關注清單有什麼消息」
+  「有沒有利空」「早盤簡報」，或 /trader-scanner 找到標的之後。也接受 "any news on 2303"、
+  "why is it moving"、"morning briefing"。
+argument-hint: "[代號，例如 2303 2330]"
 ---
 
 # trader-news
 
-A chart can look perfect and still be about to gap on an earnings date, a
-halt or a lawsuit. Before a setup becomes a trade, this skill reads the two
-feeds that carry those first, for every stock on the watchlist, and tells you
-only what is new. It also prints how far each stock has moved today, so a
-headline and a move sit side by side.
+一張圖看起來再漂亮，也可能明天就因為財報、處置或一則澄清公告跳空。在標的變成一筆交易之前，
+這個 skill 讀最先報這些事的三個來源，只告訴你新的部分，並把每檔今天的漲跌放在旁邊，標題和
+走勢一起看。
 
-Tool in this folder (standard library Python, no keys):
+這個資料夾的工具（標準函式庫 Python，不需要金鑰）：
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/news.py"                         # watchlist + plan + portfolio
-python3 "${CLAUDE_SKILL_DIR}/news.py" --tickers TSLA NVDA --hours 12
-python3 "${CLAUDE_SKILL_DIR}/news.py" --no-sec --json
+python3 "${CLAUDE_SKILL_DIR}/news.py"                               # 計畫 + 持股 + 掃盤清單
+python3 "${CLAUDE_SKILL_DIR}/news.py" --symbols 2303 2330 6488.TWO --hours 12
+python3 "${CLAUDE_SKILL_DIR}/news.py" --symbols 2303 --hours 168 --all   # 一週內的，看過的也列
+python3 "${CLAUDE_SKILL_DIR}/news.py" --no-google --json
 ```
 
-## What it reads and writes
+`--now "2026-11-02 09:20"` 把時鐘固定在那個台北時間：那之後才發布的消息不會出現，也不會被記成
+看過。這是重播，不是預測。
 
-| file / feed | what |
+## 讀什麼、寫什麼
+
+| 檔案／來源 | 內容 |
 | --- | --- |
-| `--tickers`, else `trader/watchlist.json` | the scanner's hits (trader-scanner) |
-| `trader/plan.json` | the trade you are planning (trader-exit) |
-| `trader/portfolio.json` | what you hold (trader-broker records fills there) |
-| Yahoo Finance headline RSS | `https://feeds.finance.yahoo.com/rss/2.0/headline?s=TSLA&region=US&lang=en-US` |
-| Yahoo Finance chart endpoint | the last price against yesterday's close (unofficial, can lag) |
-| SEC EDGAR company Atom feed | 8-K by default (`--forms 8-K,10-Q` for more); needs `sec_user_agent` in `trader/config.json` or `SEC_USER_AGENT`, else filings are skipped with a note |
-| `trader/state/news.json` | what has been shown (kept 30 days) and each ticker's CIK |
+| `--symbols`，或 `trader/plan.json` | 正在規劃的那一筆（trader-exit），排第一 |
+| `trader/portfolio.json` | 你持有的（trader-broker 記錄成交的地方） |
+| `trader/watchlist.json` | 掃盤找到的標的（trader-scanner） |
+| `trader/universe.txt` | 代號、名稱、上市或上櫃（trader-scanner 的清單） |
+| Yahoo股市個股新聞 RSS | `https://feeds.finance.yahoo.com/rss/2.0/headline?s=2303.TW&region=TW&lang=zh-Hant-TW`（上櫃用 `.TWO`） |
+| Google 新聞 RSS | 用「名稱 代號」搜尋，涵蓋各家媒體；連結會先經過 news.google.com 再轉到原文 |
+| 公開資訊觀測站 | 今天全部公司的即時重大訊息（一次查詢）；時間範圍超過今天時，再查每家公司今年的重大訊息（每家一次，最多 `--mops-max` 家，預設 10，間隔 2 秒） |
+| 證交所 MIS 報價 | 現價、昨收、漲跌停價；查不到時改用 Yahoo 走勢圖（非官方，可能延遲） |
+| `trader/state/news.json` | 看過哪些（保留 30 天） |
 
-## The rules
+## 規則
 
-- **Headlines are leads, not facts.** Before telling the user something
-  happened, open the story or the filing and read it. Quote the source and
-  link it. Never summarise a paywalled story you could not read: say so.
-- **Filings beat headlines.** If an 8-K and a headline disagree, the 8-K is
-  what the company told the SEC.
-- **Say what it touches.** Every item lists the tickers it touches and its
-  tags: earnings, analyst, legal, deal, capital, people, risk, halt,
-  regulatory, macro. Filings marked `!` carry an important 8-K item: earnings
-  results (2.02), an officer change (5.02), an impairment (2.06), a delisting
-  notice (3.01), past financials no longer reliable (4.02), bankruptcy (1.03)
-  or a cyber incident (1.05).
-- **MOVING** marks a stock 3 % or more from yesterday's close (`--move-pct`).
-  A move with no headline is worth saying out loud too.
-- **No predictions.** Report what was published and how far the price is from
-  yesterday's close. Never say what the stock will do next.
+- **標題只是線索，不是事實。** 告訴使用者「發生了什麼」之前，先打開原文讀過。引用來源並附上
+  連結。讀不到的付費文章就直說讀不到，不要自己補。
+- **公開資訊觀測站是正式來源。** 重大訊息是公司自己的公告；新聞和公告說法不同時，以公告為準。
+  同一件事 Yahoo 轉載的那則會併到公告裡（顯示「也見 Yahoo股市」）。
+- **說清楚碰到哪幾檔。** 每則列出它提到的你關注的股票（代號，或名稱；「世界」「中華」這類日常
+  用語的名稱要有代號才算），以及標籤：財報、營收、法說會、評等目標價、法律、併購、
+  股利／庫藏股／增減資、人事、董事會、風險、處置／注意股、暫停交易、澄清報導、法人買賣超、
+  ADR、總經。標籤只看標題，中文內文常常順便提到一大串別的股票。
+- **`!` 是要先看的公告**：公開資訊觀測站的重大訊息裡，標籤有財報、澄清報導、暫停交易、風險
+  或處置／注意股的。
+- **漲跌那一行**：離昨收的百分比，碰到漲停或跌停就標「漲停」「跌停」，超過 3%（`--move-pct`）
+  標「大漲」「大跌」。只有走勢、沒有新聞的大漲大跌也值得說出來。
+- **Google 新聞的連結是轉址**，打開後才是原文網站；同一篇文章出現在兩個網站（例如 TVBS 和
+  LINE TODAY）只列一次，最早的那家為主。
+- **名稱相近的股票會混進來。** Yahoo 的個股新聞是用名稱搜尋的：2026-11-02 晚上台達電 2308 的
+  17 則裡有 6 則其實在講台達化 1309。標題提到前兩個字相同的另一檔、卻沒提到這一檔（名稱或代號），
+  就略過並在最後說明略過了幾則；這需要 trader-scanner 的 `trader/universe.txt`。
+- **不預測。** 只報告發布了什麼、價格離昨收多遠，不說股價接下來會怎樣。
 
-## Steps
+## 步驟
 
-1. Run the check: `python3 "${CLAUDE_SKILL_DIR}/news.py"`. Exit code 1 means
-   nothing new. `--all` shows items already seen, `--json` gives everything
-   machine readable, `--dry-run` leaves the state alone.
-2. Read the items that matter: every `!` filing, anything tagged earnings,
-   halt, legal, regulatory or risk, and every MOVING ticker first.
-3. Write a short brief, per ticker: what happened, the source and link, the
-   move, and one line on why it matters to the setup (for example "earnings
-   are this week: an overnight gap can jump past any stop").
-4. If a story changes the picture, say so before `/trader-entry` and
-   `/trader-exit`: an earnings date inside the trade, a halt, an offering.
-   Never act on a headline alone.
+1. 跑 `python3 "${CLAUDE_SKILL_DIR}/news.py"`。結束碼 1 表示沒有新消息，2 表示沒有股票可看或代號
+   不對。`--all` 也列出看過的，`--json` 給機器讀的完整資料，`--dry-run` 不更新看過的紀錄。
+2. 先看重要的：每一則 `!` 公告、標了財報、處置／注意股、暫停交易、風險、法律的，以及漲停、
+   跌停、大漲大跌的股票。
+3. 每檔寫一段簡短摘要：發生什麼事、來源和連結、今天的漲跌，再加一句這對這筆交易的意義（例如
+   「財報週，隔夜可能跳空，當沖要在 13:20 前出場」「進入處置，分盤撮合，停損可能來不及」）。
+4. 消息改變了局面就先說，再進 `/trader-entry`、`/trader-exit`：交易時間內的法說會、處置、
+   暫停交易、增資。絕不只憑一則標題就行動。
+5. 有附註就照實說：哪個來源沒連上、公開資訊觀測站只查了前幾檔。
 
-During the session: `/loop 15m /trader-news`, or a scheduled task each
-morning before the open.
+盤中可以 `/loop 15m /trader-news`，或排一個每天開盤前的排程。
 
-## Example: the reel
+## 範例：聯電 2026-11-02
 
-Monday 2026-10-19, TSLA broke its opening range at 10:15 AM ET. The check at
-10:15 (Yahoo Finance's TSLA feed, 16 headlines since 8:00) leads with the
-morning's real stories: "Meta and Musk earnings and September pending home
-sales: What to Watch" (8:00, earnings), "Tesla-SpaceX Merger Mania Strikes
-Wall Street Ahead of Earnings" (8:04, earnings, deal), "Tech Stock Rebound
-Nudges US Equity Futures Mostly Higher Pre-Bell" (8:02, macro). The brief:
-"Tesla reports this week, so the stock can gap overnight; today's trade is
-in and out before the close. No new 8-K." At 10:52 the price line reads
-`TSLA 366.48 +3.31% vs yesterday's close 354.72 at 10:52 ET  MOVING`. When a
-ticker has no news, say so rather than padding the brief.
+聯電 2303 在 09:20 突破開盤區間。那一刻的檢查（`--now "2026-11-02 09:20"`，往回 48 小時）：
 
-## What it never does
+```
+2303 聯電  110.0  -1.35%  昨收 111.5  09:20（Yahoo 5 分 K）
 
-- Never invents or embellishes a story, a quote or a number.
-- Never trades on news, and never tells the user to buy or sell because of a
-  headline.
-- Never hammers a server: one request per feed per ticker, a pause between
-  calls, and SEC's 10 requests a second limit stays far away.
+  2026-11-02 08:43  2303  Yahoo股市  近10個交易日慘跌21.5％！法人上週提款聯電20萬張 投信連7賣不手軟、外資逆勢回補
+      標籤：法人買賣超  https://news.google.com/rss/articles/...
+  2026-11-02 08:09  2303  TVBS新聞網  市場傳三星急回頭追萬片訂單 聯電產能滿載「不接了」
+  ...
+```
 
-## Safety
+一共 12 則，都來自 Google 新聞的各家媒體。Yahoo 的個股新聞這兩天沒有新的，公開資訊觀測站從
+10/28 之後也沒有聯電的公告。09:20 的 MIS 報價要到收盤才有，重播時改用 Yahoo 5 分 K：09:15 那根
+收 110.0，比昨收 111.5 跌 1.35%。10:50 才出現的「聯電法說後震盪！一度跌破110元」這時還看不到。
 
-Education and tooling, not financial advice. This skill only reads and
-reports. Nothing places an order except `/trader-broker`, after
-`/trader-risk` passes and the user types an explicit yes for that order.
+往回一週（`--hours 168 --no-google`）就碰到 10/28 的第三季財報，一共 16 則：4 則公告和 12 則
+Yahoo 新聞；Yahoo 另有一則是財報公告的轉載，併進公告裡：
+
+```
+! 2026-10-28 17:06  2303  公開資訊觀測站（也見 Yahoo股市）  聯電 本公司2026年第三季財務報告
+      標籤：財報  重大訊息：在公開資訊觀測站查 2303，115/10/28 17:06:04（第 5 則）  https://mopsov.twse.com.tw/mops/web/t05st01
+! 2026-10-28 17:00  2303  公開資訊觀測站  聯電 公告本公司董事會決議通過民國115年第三季合併財務報告
+```
+
+簡報可以這樣寫：「聯電 10/28 公布第三季財報、開完法說會後連跌，法人連續賣超，今天早上的新聞
+都在講矽光子訂單和法人調節；這筆是當沖，13:20 前出場，不留到下一則消息。」同一天 22:00 再查，
+收盤那行變成 `2303 聯電  110.0  -1.35%  昨收 111.5  13:30（證交所 MIS）`，10:50 那則
+TVBS 的報導也出現了（也見 LINE TODAY）。上櫃的環球晶要用 `.TWO` 查：
+`6488 環球晶  760  +0.53%  昨收 756  13:30（證交所 MIS）`。
+
+## 不做的事
+
+- 不編造、不加油添醋任何故事、引述或數字。
+- 不因為新聞下單，也不因為一則標題叫使用者買或賣。
+- 不狂打伺服器：每個來源每檔一次，請求之間有間隔，公開資訊觀測站至少間隔 2 秒，它會擋短時間
+  內太多查詢。
+
+## 安全
+
+這是教學與工具，不構成投資建議。這個 skill 只讀取和報告，不會下單。這套 skill 只有
+trader-broker 會產生委託單，而且要 trader-risk 通過那一張、使用者在對話中針對那一張明確回覆
+yes，最後由使用者自己在券商 App 送出。

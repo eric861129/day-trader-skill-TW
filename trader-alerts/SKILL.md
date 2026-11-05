@@ -1,160 +1,187 @@
 ---
 name: trader-alerts
 description: >-
-  Price Alerts. Rings when a price, a stop or the opening bell hits. Turns
-  the trade plan into three alerts in one go (the stop, the target and "flat
-  by close" at your flat-by time), plus above / below / stop / target levels,
-  percent moves from the previous close, any time of day, and the NYSE
-  opening bell, each ringing once so you are not spammed. Knows NYSE hours
-  with the 2026 and 2027 holidays and 1:00 p.m. early closes, works out New
-  York time itself, fetches free delayed quotes (Yahoo chart JSON, Stooq
-  CSV) one ticker at a time, and writes trader/prices.json for sizing and the
-  risk check. Use when the user says "alert me when", "tell me if TSLA hits",
-  "watch my stop", "watch my trade", "remind me to close by 3:55", "is the
-  market open", "when does the market open", "get me a price", or right
-  after /trader-exit writes a plan.
-argument-hint: "[ticker] [price]"
+  到價提醒（Price Alerts，台股）。價格碰到停損、停利、漲停或跌停，或開盤、13:20 出清的時間到了就提醒你。
+  一個指令就把 trader-exit 的交易計畫變成四條提醒：停損、停利、13:20 前出清和跌停；也可以自己設到價
+  （高於或低於）、比昨收漲跌幾 %、任何時間和 09:00 開盤，每條只響一次，不會一直吵。知道台股的開收盤：
+  08:30 起接受委託、09:00 開盤、盤中零股 09:10 第一次撮合、13:25 收盤集合競價、13:30 收盤，也知道證交所
+  的休市日和颱風假，可以抓證交所公布的年度休市日。報價用證交所 MIS（上市上櫃一次抓），沒有就用 Yahoo，
+  寫進 trader/prices.json 給 trader-budget 和 trader-risk 用。不會下單。使用時機：使用者說「到價通知」
+  「停損提醒」「幫我盯停損」「碰到 111.5 告訴我」「開盤提醒」「13:20 提醒我出清」「現在有開盤嗎」
+  「幾點收盤」「颱風假有沒有開市」「幫我報價」「聯電現在多少」，或 /trader-exit 寫好計畫之後。
+  也接受 "alert me when"、"watch my stop"、"is the market open"、"get me a price"。
+argument-hint: "[代號] [價格]"
 ---
 
 # trader-alerts
 
-Price Alerts watches the numbers so the user does not have to stare at a
-chart. An alert is information, never an order: when a stop alert rings,
-nothing is sold by this skill. With a bracket order the stop-loss and the
-take-profit already sit at the broker and do the work; the alerts tell the
-user what happened and when it is time to be flat.
+到價提醒幫使用者盯數字，不用一直看盤。提醒只是資訊，永遠不是委託：停損響了，這個 skill 不會賣任何東西。
+台灣的交易所沒有停損單，停損和停利要靠使用者在券商 App 設的條件單（觸價單），或使用者自己下的賣單。
+提醒是告訴使用者發生了什麼、什麼時候該出清。
 
-`${CLAUDE_SKILL_DIR}` below is this skill's folder (where this SKILL.md lives).
+`${CLAUDE_SKILL_DIR}` 是這個 skill 的資料夾（這份 SKILL.md 所在的地方）。
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" clock                          # NYSE open or closed, next open
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --from-plan                # stop, target, flat by close from trader/plan.json
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" clock                          # 台股現在有沒有開？下一次開盤
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" calendar                       # 今年的平日休市日（含颱風假）
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" calendar --update 2027         # 證交所公布後，抓 2027 年的休市日
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --from-plan                # 停損、停利、13:20 出清、跌停，取自 trader/plan.json
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --symbol 2303 --stop 108.5
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --symbol 2303 --target 111.5
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --symbol 0050 --pct 3
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --symbol 2303 --limit-down
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --at 13:20 --label "13:20 前出清" --symbol 2303
 python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --opening-bell
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --symbol TSLA --stop 358.32
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --symbol TSLA --target 370.04
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --at 15:55 --label "flat by close" --before-close
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" add --symbol KO --pct 3
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" check                          # exit 0 = something rang
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" quote TSLA --write             # -> trader/prices.json
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" quote --holdings --write       # portfolio + plan tickers
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" check                          # 有響 exit 0，沒有響 exit 1
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" quote 2303 6488 --write        # 報價 -> trader/prices.json
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" quote --holdings --write       # 計畫、部位和觀察清單的代號
 python3 "${CLAUDE_SKILL_DIR}/alerts.py" list
-python3 "${CLAUDE_SKILL_DIR}/alerts.py" reset tsla-plan-stop
+python3 "${CLAUDE_SKILL_DIR}/alerts.py" reset 2303-plan-stop
 ```
 
-`--now "2026-10-19 15:55"` pins the clock (New York time); `--offline DIR`
-reads saved quote files instead of the network.
+`--now "2026-11-02 09:42"` 固定時間（台北時間）；`--offline PATH` 讀存下來的 MIS 報價或 Yahoo K 線
+（檔案或資料夾，可以給好幾個），不連網。
 
-## What it reads and writes
+## 讀什麼、寫什麼
 
-| file | what |
+| 檔案 | 內容 |
 | --- | --- |
-| `trader/plan.json` | the trade from trader-exit, for `add --from-plan` |
-| `trader/alerts.json` | the rules (`alerts.example.json` in this folder) |
-| `trader/state/alerts.json` | which rules rang and when, so each rings once |
-| `trader/prices.json` | the latest quotes, merged in, for trader-budget and trader-risk |
-| `trader/portfolio.json` | the tickers held, for `quote --holdings` |
+| `trader/plan.json` | trader-exit 的交易計畫，給 `add --from-plan` |
+| `trader/alerts.json` | 提醒規則（這個資料夾的 `alerts.example.json` 是範例） |
+| `trader/state/alerts.json` | 哪些規則響過、什麼時候響，所以每條只響一次 |
+| `trader/prices.json` | 最新報價，合併寫入，給 trader-budget 和 trader-risk |
+| `trader/portfolio.json`、`trader/watchlist.json` | `quote --holdings` 要報的代號 |
+| `trader/config.json` | `flat_by`（計畫沒寫時用）和 `extra_closed`（臨時休市，例如颱風假） |
+| `trader/state/calendar-YYYY.json` | `calendar --update` 存下的年度休市日 |
 
-## Rule types
+## 規則類型
 
-| type | rings when | rings again |
+| 類型 | 什麼時候響 | 會不會再響 |
 | --- | --- | --- |
-| `above` / `target` | price at or above `price` | after `reset`, or on its own if `"rearm": true` and the price fell back |
-| `below` / `stop` | price at or below `price` | same |
-| `pct_move` | moved `pct` percent from the previous close (or `ref`), optional `direction` up or down | once per day at most |
-| `time` | the New York clock passed `at` ("15:55") on a trading day | once per trading day |
-| `opening_bell` | the NYSE is open | once per trading day |
+| `above` / `target` | 價格大於或等於 `price` | `reset` 之後；或 `"rearm": true` 而且價格退回去之後 |
+| `below` / `stop` | 價格小於或等於 `price` | 同上 |
+| `pct_move` | 比昨收（或 `ref`）漲跌 `pct`% 以上，可以只看 `direction` up 或 down | 一天最多一次 |
+| `limit_up` | 碰到漲停：漲停鎖住時買單排隊也可能買不到 | 一天最多一次 |
+| `limit_down` | 碰到跌停：跌停鎖住時賣單可能賣不掉，停損也可能出不去 | 一天最多一次 |
+| `time` | 交易日的台北時間過了 `at`（例如 "13:20"） | 每個交易日一次 |
+| `opening_bell` | 09:00 開盤了 | 每個交易日一次 |
 
-A rule with `"date"` is watched on that New York date only; `--from-plan`
-rules carry the plan's date, so yesterday's stop never rings today. A `time`
-rule with `"before_close": true` moves 3 hours earlier on a 1:00 p.m. early
-close, so "flat by close" at 15:55 rings at 12:55 on those days.
+有 `"date"` 的規則只在那一個台北日期看；`--from-plan` 的規則都帶計畫的日期，所以昨天的停損今天不會響。
+休市日（週末、國定假日、颱風假）不響時間提醒和開盤提醒。
 
-## Quotes
+每條規則比的都是**最新成交價**（重播時是 `--now` 之前最後一根收完的 K 棒收盤價），不是那根 K 棒的最低價或
+最高價。價格在兩次檢查之間碰到又回去，就看不到，所以部位還在的時候要常常檢查。
 
-- `yahoo` (default): `query2.finance.yahoo.com/v8/finance/chart/<TICKER>`, an
-  unofficial free JSON endpoint, one request per ticker, half a second apart.
-  On a 429 it waits and tries once more; on a 429 or a 5xx after that it
-  tries `query1`. It identifies itself as `day-trader-skill/2.0`.
-- `stooq`: `stooq.com/q/l/?s=tsla.us&f=sd2t2ohlcv&h&e=csv`, Stooq's free CSV.
-  It answered 404 on 2026-10-13; the parser stays for when it is back.
-- Free quotes are unofficial, delayed and can lag. They are fine for alerts
-  and for checking a size, not for timing an order. The broker's price is the
-  one that fills. Each price in `trader/prices.json` keeps its quote time, and
-  trader-risk only uses one under 15 minutes old.
-- If both are down, read the price from the broker connector (Alpaca
-  `get_stock_snapshot`, IBKR `get_price_snapshot`) and write it into
-  `trader/prices.json` as `{"as_of": "...Z", "prices": {"TSLA": 366.48}}`.
+## 報價
 
-## The NYSE clock
+- `mis`（預設）：證交所的 MIS 報價頁 `mis.twse.com.tw/stock/api/getStockInfo.jsp`，所有代號一次請求，上市
+  和上櫃都在裡面；不知道是上市還是上櫃的代號，兩邊一起問，只有對的那邊會回答。會帶回昨收、漲停價、跌停價和
+  成交時間。這是交易所自己的網頁，但不是正式 API，格式可能會變。
+- 今天還沒成交的（08:30 到 09:00 開盤前，或還沒人買賣的冷門股）：MIS 已經有今天的漲跌停價，報價就用昨收，
+  標「昨收，今天還沒有成交」，開盤前再加上試撮價。這時不改用 Yahoo：Yahoo 只有昨天的成交，會帶著昨天的
+  漲跌停價（2026-11-03 08:39 聯電印成 122.5／100.5，今天其實是 121.0／99.0）。
+- 盤中 MIS 常常不給今天已經成交過的股票的最後成交價（那一刻的快照沒有成交）。這時用最佳委買價
+  （做多的人賣得到的價格；沒人委買就用委賣價），標「委買價（這一刻沒有成交價）」。不改用 Yahoo：Yahoo
+  的台股盤中資料延遲約 20 分鐘（2026-11-03 09:41 貿聯-KY：Yahoo 1,605 是 09:21 的，MIS 委買 1,660）。
+- `yahoo`：`query2.finance.yahoo.com/v8/finance/chart/2303.TW`（上櫃是 `.TWO`），非官方，一次一檔，間隔
+  半秒；遇到 429 等一下再試一次，再不行或 5xx 就改用 `query1`。MIS 沒有某一檔的成交價，或 MIS 整個抓不到，
+  就自動改用 Yahoo，並且會說一聲。漲跌停價用昨收算 ±10%。Yahoo 的成交不是今天的，時間前面會加上日期。
+- 免費報價可能延遲。拿來提醒和檢查張數可以，拿來抓下單時機不行；真正成交的是券商的價格。
+  `trader/prices.json` 的每一檔都記著報價本身的時間，trader-budget 和 trader-risk 只用 15 分鐘內的。
+- 重播看不到未來：`--now` 之後才成交的 MIS 報價不會用，K 線只用 `--now` 之前已經收完的那幾根
+  （09:42 看得到 09:41 那根 1 分 K，看不到 09:42 那根）。
 
-Regular session 9:30 a.m. to 4:00 p.m. New York time, closed on weekends and
-on these holidays, from nyse.com/markets/hours-calendars (read 2026-10-13):
+## 台股的時間
 
-- 2026: Jan 1, Jan 19, Feb 16, Apr 3 (Good Friday), May 25, Jun 19, Jul 3
-  (Independence Day observed), Sep 7, Nov 26, Dec 25. Early close 1:00 p.m. on
-  Nov 27 and Dec 24.
-- 2027: Jan 1, Jan 18, Feb 15, Mar 26 (Good Friday), May 31, Jun 18
-  (Juneteenth observed), Jul 5 (Independence Day observed), Sep 6, Nov 25,
-  Dec 24 (Christmas observed). Early close 1:00 p.m. on Nov 26.
+- 08:30 起接受委託，09:00 開盤集合競價，之後逐筆交易。
+- 盤中零股 09:00 起可以委託，09:10 第一次撮合，之後每 5 秒一次。
+- 13:25 到 13:30 是收盤集合競價，只收限價 ROD，13:30 收盤。
+- 休市日用 twmarket.py 內建的 2026 年證交所休市日，加上兩個颱風假（7/10 巴威、10/23 薔琵），
+  再加上 `calendar --update` 存下的年度和設定檔的 `extra_closed`。證交所的清單不會列颱風假：臨時休市請寫進
+  `trader/config.json`，例如 `"extra_closed": {"2026-11-03": "颱風停止交易"}`。
+- 一律用台北時間（UTC+8，沒有日光節約），不看電腦自己的時區。清單裡沒有的年份會說一聲。
 
-Daylight saving time is worked out in the tool, so it needs no time zone
-files and ignores the computer's own zone. For any other year it says the
-holiday list is unknown.
+## 步驟
 
-## Steps
+1. trader-exit 寫好計畫之後，馬上跑 `add --from-plan`，把四條提醒回報給使用者：停損、停利、出清時間、跌停。
+2. 部位還在的時候一直跑 `check`：用排程或 `/loop`，每一兩分鐘一次。每次只抓今天規則裡的代號，每條只響一次。
+   檢查讀的是最新報價，不是即時串流。
+3. 響了什麼，一條一行告訴使用者。停損或停利響了：如果使用者在券商 App 設了條件單，先看有沒有成交，成交了用
+   trader-broker 的 `ticket.py fill` 記錄；沒設的話，要不要賣由使用者決定。「13:20 前出清」響了：還有部位就用
+   trader-broker 的 `ticket.py flatten --symbol 2303` 產生賣單，再經過 trader-risk 和使用者的 yes。
+   不要替使用者做決定。
 
-1. Right after trader-exit writes the plan, run `add --from-plan`. Confirm
-   the three alerts back to the user: the stop, the target and the flat-by time.
-2. Run `check` while the trade is open: every few minutes from a Claude
-   scheduled task or `/loop`. Each run fetches only the tickers in today's
-   rules and rings each alert once. A check reads the latest delayed quote;
-   it is not a live feed, and a price can pass a level between two checks.
-3. Tell the user what rang in one line each. A stop or target alert means the
-   bracket order has probably filled: check `get_open_position` and record the
-   fill with trader-broker. "Flat by close" means close anything still open:
-   trader-broker `flatten`, then trader-risk, then the user's yes. Never act
-   for them.
+## 範例：聯電 2026-11-02
 
-## Example: the reel
-
-TSLA on Monday 2026-10-19: entry 364.18 at 10:15 AM, stop 358.32, target
-370.04, flat by 15:55. `add --from-plan` writes `tsla-plan-stop`,
-`tsla-plan-target` and `tsla-flat-by` for that day. A `check` at 10:53 reads
-the real 10:52 quote, 366.48, between the stop and the target:
+計畫：聯電 2303 做多，09:20 進場 110.0，停損 108.5，停利 111.5，13:20 前出清，跌停 100.5。
 
 ```
-NYSE OPEN (2026-10-19 10:53 New York, regular session).
-Nothing hit. 3 rule(s) watched today, TSLA $366.48.
+$ alerts.py add --from-plan
+已加 2303-plan-stop：聯電 2303 停損：到或低於 108.5，只看 2026-11-02
+已加 2303-plan-target：聯電 2303 停利：到或高於 111.5，只看 2026-11-02
+已加 2303-flat-by：13:20 響：13:20 前出清（聯電 2303），只看 2026-11-02
+已加 2303-limit-down：聯電 2303 跌停，只看 2026-11-02
 ```
 
-At 3:55 PM:
+用當天的 1 分 K 重播（`check --now ... --offline 2303-2026-11-02-1m.json`）：
 
 ```
-ALERT Flat by close: it is 15:55 New York (set for 15:55), the market closes at 16:00. If TSLA is still
-open, close it: trader-broker flatten --symbol TSLA builds the sell ticket, then trader-risk and your yes.
+09:40  沒有警示。今天看 4 條規則，聯電 2303 109.5。
+09:41  沒有警示。今天看 4 條規則，聯電 2303 109.0。
+09:42  警示 聯電 2303 現在 108.5（09:41 那根 1 分 K 收盤），小於或等於你的停損 108.5（計畫停損：開盤區間中點）。
+09:43  沒有警示（停損只響一次）。
+13:20  警示 13:20 前出清：現在台北 13:20（設定 13:20），13:25 起是收盤集合競價（只收限價 ROD），13:30 收盤。
+       聯電 2303 還有部位的話就平倉：trader-broker 的 ticket.py flatten --symbol 2303 產生賣單，
+       再經過 trader-risk 和你的 yes。
+13:31  台股沒有開盤（台北 2026-11-02 13:31（一），已收盤）。聯電 2303 110.0。
 ```
 
-It rings once. The next morning the plan's three alerts are no longer
-watched; with `add --opening-bell`, the bell rings at 9:30.
+09:41 那根 K 棒 09:42 才收完，所以 09:42 的檢查才看得到 108.5。停損響了以後，trader-alerts 不會賣：使用者在券商
+App 設的觸價單如果成交了，就用 `ticket.py fill` 記錄。
 
-## Rules
+收盤後的報價（MIS）：
 
-- An alert is a fact about a price or the clock. Say it as a fact.
-- Never present a quote as live. Free quotes are delayed and unofficial.
-- Confirm every new rule back to the user: ticker, type, level, day.
+```
+$ alerts.py quote 2303 6488 2330 --write
+聯電 2303（上市）  110.0  -1.35%（昨收 111.5）  漲停 122.5／跌停 100.5  13:30:00 成交  [mis]
+環球晶 6488（上櫃）  760  +0.53%（昨收 756）  漲停 831／跌停 681  13:30:00 成交  [mis]
+台積電 2330（上市）  2,330  -1.69%（昨收 2,370）  漲停 2,605／跌停 2,135  13:30:00 成交  [mis]
+```
 
-## What it never does
+隔天開盤前（2026-11-03 08:41）：
 
-It never places, cancels or changes an order, never claims a quote is
-live, and never predicts where a price is going.
+```
+$ alerts.py quote 2303 2308
+聯電 2303（上市）  110.0  昨收，今天還沒有成交  試撮 107.0（-2.73%）  漲停 121.0／跌停 99.0  08:41:49 的報價  [mis]
+台達電 2308（上市）  1,355  昨收，今天還沒有成交  試撮 1,265（-6.64%）  漲停 1,490／跌停 1,220  08:41:46 的報價  [mis]
+```
 
-## Safety
+試撮價是開盤前的模擬撮合，不是成交，開盤時可能差很多。
 
-- Education and tooling, not financial advice. A PASS is a rules check, not a recommendation.
-- Paper trading by default (`"paper": true`). Going live is the user's own decision, in their own config.
-- Nothing in this pack places an order except trader-broker, and only when all three hold: trader-risk
-  passed that exact order today, the user typed an explicit yes for that one order in the chat, and the
-  user clicked Allow once on Claude's own card because the order tool is set to "Needs approval"
-  (Customize > Connectors > tool permissions). Never set an order tool to "Always allow".
-- No options, margin, short selling or leverage unless the config allows it and the user confirms.
-- Broker keys live in environment variables or the Claude Desktop config, never in the chat.
+颱風假那天：
+
+```
+$ alerts.py clock --now "2026-10-23 10:00"
+台股沒有開盤（台北 2026-10-23 10:00（五），薔琵颱風，台北市停班，全日休市）。
+下一次開盤：2026-10-27（二） 09:00。
+```
+
+10/23 颱風、週末、10/26 光復節補假，下一次開盤是星期二。
+
+## 規則
+
+- 提醒是關於價格或時間的事實，就用事實的語氣說。
+- 不要把報價說成即時的。免費報價可能延遲，也不是正式資料。
+- 每加一條規則都回報給使用者：代號、類型、價格、哪一天。
+
+## 不做的事
+
+不下單、不刪單、不改單，不說報價是即時的，也不預測價格會往哪裡走。
+
+## 安全
+
+- 這是教學與工具，不構成投資建議。PASS 只代表通過規則檢查，不是推薦。
+- 預設模擬交易（`"paper": true`）。要不要動用真錢，由使用者自己在自己的設定檔決定。
+- 這套 skill 不會自己下單。只有 trader-broker 會產生委託單，而且三件事都成立才會：trader-risk 今天通過了這一張單、使用者在對話中針對這一張單明確回覆 yes、使用者自己在券商 App 或下單軟體送出。
+- 不做融資、融券、先賣後買、選擇權或期貨，除非設定檔開啟而且使用者確認。
+- 券商帳號、密碼和憑證不在對話裡出現，也不寫進任何檔案。

@@ -1,0 +1,9 @@
+# never commit broker keys or certificates
+.env
+*.pfx
+
+__pycache__/
+*.pyc
+
+# Claude Code's local settings and scheduler state
+.claude/

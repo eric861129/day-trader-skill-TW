@@ -1,20 +1,21 @@
 {
-  "name": "day-trader-skill",
-  "description": "11 Claude skills for day trading: scan thousands of charts, track breaking news, time every entry and exit, and replay every outcome before you risk a dollar.",
-  "version": "2.0.0",
+  "name": "day-trader-skill-tw",
+  "description": "11 個台股當沖 Claude skill：掃描上千檔線圖、追蹤新聞和重大訊息、抓準每一次進場和出場，並在動用真錢之前先重播每一種結果。",
+  "version": "1.0.0",
   "author": {
-    "name": "Jake Schincariol",
-    "url": "https://opusjake.ai"
+    "name": "eric861129",
+    "url": "https://github.com/eric861129"
   },
-  "homepage": "https://github.com/Jakeschincariol/day-trader-skill",
-  "repository": "https://github.com/Jakeschincariol/day-trader-skill",
+  "homepage": "https://github.com/eric861129/day-trader-skill-TW",
+  "repository": "https://github.com/eric861129/day-trader-skill-TW",
   "license": "MIT",
   "keywords": [
     "claude-code",
     "claude-skills",
     "day-trading",
-    "stock-market",
-    "backtesting",
+    "taiwan-stock",
+    "twse",
+    "tpex",
     "opening-range-breakout",
     "paper-trading"
   ],

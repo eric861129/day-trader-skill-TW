@@ -1,0 +1,40 @@
+{
+  "created_by": "trader-budget",
+  "created_at": "2026-11-02T01:20:00Z",
+  "status": "proposed",
+  "paper": true,
+  "note": "只是提案。trader-risk 通過這一張、你在對話中針對這一張明確回覆 yes、你自己在券商 App 送出，三件事都成立才會下單。",
+  "source": "trader/plan.json（聯電 2303 orb 2026-11-02）",
+  "orders": [
+    {
+      "symbol": "2303",
+      "market": "TWSE",
+      "name": "聯電",
+      "side": "buy",
+      "lot": "board",
+      "qty": 1000,
+      "price_type": "market",
+      "tif": "IOC",
+      "trade": "day_trade",
+      "stop": "108.5",
+      "target": "111.5",
+      "why": "開盤區間突破，聯電 2303：1 張，由單筆最大虧損 NT$3,000 決定（停損出場約虧 NT$1,972，其中手續費和證交稅 NT$472）",
+      "plan": {
+        "date": "2026-11-02",
+        "setup": "orb",
+        "entry": 110.0,
+        "entry_time": "09:20",
+        "stop": 108.5,
+        "target": 111.5,
+        "risk_per_share": 1.5,
+        "risk_ticks": 3,
+        "max_loss": 1972.0,
+        "cost_at_stop": 472,
+        "flat_by": "13:20",
+        "prev_close": 111.5,
+        "limit_up": 122.5,
+        "limit_down": 100.5
+      }
+    }
+  ]
+}

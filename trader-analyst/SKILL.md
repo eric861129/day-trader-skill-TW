@@ -1,123 +1,111 @@
 ---
 name: trader-analyst
 description: >-
-  The Earnings Analyst. Reads a company's reported numbers straight from SEC
-  EDGAR (XBRL company facts from its 10-Qs and 10-Ks, plus the latest earnings
-  8-K and its press release) and sums up what changed: revenue, gross,
-  operating and net margins, net income and diluted EPS, quarter by quarter,
-  each against the same quarter a year earlier, with the trailing twelve
-  months. Reads an earnings call transcript when you paste one. Use when the
-  user says "how did Tesla's earnings look", "analyze the earnings", "what
-  changed this quarter", "is revenue growing", "check the 10-Q", "compare
-  margins", "sum up the call", "does it report this week", or before trading
-  a stock around its earnings.
-argument-hint: "[tickers]"
+  財報分析（Earnings Analyst，台股）。直接讀公開資訊觀測站（MOPS）上公司自己申報的數字，整理出
+  有什麼變化：最近 12 個月的月營收（月增、年增、今年累計年增），最近幾季的合併綜合損益表（單季營收、
+  毛利率、營業利益率、淨利率、基本 EPS，每一季都跟去年同季比，第 4 季由全年減前三季推算），近四季
+  合計，業外收支占比，以及最近一次法說會（日期、地點、摘要、簡報 PDF）。也會說下一次月營收和季報
+  最晚什麼時候公布。只整理數字，不說買賣。使用時機：使用者說「聯電營收」「月營收」「財報怎麼樣」
+  「EPS 多少」「毛利率」「這季賺多少」「法說會」「下次財報什麼時候」「營收有沒有成長」，或要在財報、
+  營收公布前後做這檔股票之前。也接受 "earnings"、"how did the quarter look"、"revenue growth"。
+argument-hint: "[股票代號]"
 ---
 
 # trader-analyst
 
-Earnings move stocks more than anything else on the calendar, and the press
-release is written to put the best number first. This skill reads the numbers
-the company actually filed with the SEC, lines them up quarter by quarter, and
-says plainly what changed. For a day trader it answers two questions before a
-trade: what did the last report say, and is the next one inside this trade?
+財報和月營收是台股最常讓股價跳空的消息，新聞標題通常只挑最好看的數字講。這個 skill 讀公司在公開資訊
+觀測站正式申報的數字，按月、按季排好，用白話說清楚變了什麼。對當沖的人，它回答兩個問題：上一次公布
+說了什麼，下一次公布會不會落在這筆交易裡面。
 
-Tool in this folder (standard library Python, no keys):
+`${CLAUDE_SKILL_DIR}` 是這個 skill 的資料夾（這份 SKILL.md 所在的地方）。
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/facts.py" --help
+python3 "${CLAUDE_SKILL_DIR}/facts.py" 2303
+python3 "${CLAUDE_SKILL_DIR}/facts.py" 2303 2330 --months 24 --quarters 8
+python3 "${CLAUDE_SKILL_DIR}/facts.py" 2303 --json
+python3 "${CLAUDE_SKILL_DIR}/facts.py" 2303 2330 --metrics trader/metrics.json
 ```
 
-It needs the SEC User-Agent (`sec_user_agent` in `trader/config.json`, or
-`SEC_USER_AGENT`): "Your Name you@example.com" with the user's real name and
-email. It refuses to call SEC without one.
+不需要金鑰，也不需要帳號。只用 Python 標準函式庫。
 
-## What it reads and writes
+## 讀什麼、寫什麼
 
-- Reads `https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json` (every
-  number the company has tagged in its filings), the company's submissions
-  list (for the newest 10-Q or 10-K and the newest 8-K with item 2.02,
-  "Results of Operations") and that 8-K's folder to find the press release
-  (the EX-99.1 exhibit).
-- Writes `trader/metrics.json` with `--metrics`: one row per company (TTM
-  revenue, net income and diluted EPS, the latest margins and growth), for
-  your notes or a spreadsheet. `metrics.example.json` in this folder is a
-  real run for AAPL, AXP, GOOGL, KO and BAC on 2026-10-13.
-- Earnings calls: the tool does not fetch transcripts. If the user pastes one
-  (or the company's IR page has it), read it and sum up what management said
-  changed: guidance, margins, demand, anything they declined to answer.
-- The next report date is not in SEC data. Look for it in `/trader-news`
-  headlines or on the company's investor relations page, and say where it
-  came from.
+| 來源或檔案 | 內容 |
+| --- | --- |
+| 公開資訊觀測站 `ajax_t05st10_ifrs` | 一家公司一個月的營收：本月、去年同期、年增率、本年累計、去年累計 |
+| 公開資訊觀測站 `ajax_t164sb04` | 一家公司一季的合併綜合損益表：這一季、去年同一季、今年累計 |
+| 公開資訊觀測站 `ajax_t100sb07_1` | 最近一次法說會：日期、時間、地點、摘要、中英文簡報、影音連結 |
+| `trader/state/analyst/<代號>/` | 已公布的月份和季度存在這裡（公布後就不會變），下次只問新的 |
+| `trader/metrics.json`（`--metrics`） | 每檔一列：近四季營收、淨利、EPS，最新一季的利潤率和成長，最新月營收 |
 
-## The rules
+公開資訊觀測站會擋太密集的查詢，所以每次請求至少隔 2 秒。第一次查一檔大約 20 次請求、將近一分鐘；之後有快取，
+只問還沒公布的月份和法說會，幾秒就好。`metrics.example.json` 是 2026-11-02 晚上對聯電和台積電實際跑一次的結果。
 
-- **Filed numbers first.** The table comes from XBRL facts the company filed.
-  Use the press release for context (guidance, segment colour), and say which
-  numbers came from where.
-- **Compare like with like.** Growth is against the same quarter a year
-  earlier. Quarter-on-quarter changes are shown but many businesses are
-  seasonal (Apple's December quarter is always its biggest).
-- **Say what is derived.** Companies do not file a Q4 10-Q. The fourth
-  quarter is the 10-K year minus the three quarters inside it and is marked
-  "derived"; derived EPS is approximate.
-- **Say when the data lags.** SEC's facts API can trail a filing. When the
-  newest 10-Q is later than the newest quarter in the facts, the tool prints a
-  NOTE with the link: read the 10-Q itself before summarising.
-- **Flag one-offs.** When net income is above operating income, gains outside
-  the business (investment marks, tax items) are inside it. The tool says so.
-  Banks and insurers have no gross margin: blank, not zero.
+## 規則
 
-## Steps
+- **只用申報的數字。** 表格裡的數字都來自公開資訊觀測站，單位是新台幣仟元（EPS 是元），照公司申報的寫。
+  月營收的年增率照公開資訊觀測站那一頁公布的百分比（它不同頁面的四捨五入不一定一致），月增率是工具自己算的。
+- **跟去年同期比。** 很多產業有季節性，成長先看年增，季增和月增只是參考。缺了一個月，那個月之後的月增就留白，
+  不跨月比。
+- **第 4 季是推算的。** 第 4 季的財報只有全年數字，單季第 4 季等於全年減前三季累計，標成「推算」；推算的 EPS
+  是近似值，因為全年和前三季的加權股數不同。第 1 季的報表把累計欄放在前面，工具會照欄位名稱對，不會拿錯欄。
+- **淨利用歸屬於母公司業主的那一行。** 淨利率、淨利年增和近四季淨利都用「母公司業主（淨利／損）」，EPS 用基本
+  每股盈餘，兩者算法一致。
+- **標出業外。** 業外收支占稅前淨利兩成以上的季度會列出來：那幾季的淨利率和 EPS 有一大塊不是本業賺的（投資收益、
+  處分利益、匯兌）。
+- **說清楚還沒公布的。** 月營收最晚次月 10 日公布；季報一般產業最晚：第 1 季 5/15、第 2 季 8/14、第 3 季 11/14、
+  年報隔年 3/31（銀行、保險、金控、證券業的期限不同）。還沒到期限就寫在「接下來」，過了期限還查不到會另外提醒。
+- **金融業不硬算。** 銀行、保險和金控在公開資訊觀測站的損益表格式不同，查不到一般產業的綜合損益表時，季報那段
+  留白並說明原因，月營收照樣列。ETF 沒有營收和財報，工具會直接說。
 
-1. Run it for the companies in question (or the tickers on
-   `trader/watchlist.json`):
+## 步驟
+
+1. 對要看的股票跑一次（或 `trader/watchlist.json` 裡的代號）：
 
    ```bash
-   python3 "${CLAUDE_SKILL_DIR}/facts.py" TSLA
-   python3 "${CLAUDE_SKILL_DIR}/facts.py" TSLA NVDA AMD --metrics trader/metrics.json
+   python3 "${CLAUDE_SKILL_DIR}/facts.py" 2303
    ```
 
-   `--quarters 8` shows two years, `--json` everything machine-readable,
-   `--cik` a company without a ticker.
-2. Open the latest earnings press release (the EX-99 link) and the 10-Q when
-   the numbers need context, and read them.
-3. Write the summary: one line on the quarter (revenue, EPS, growth), one on
-   margins, one on anything unusual (a one-off, a derived quarter, data that
-   lags), and the links. Plain words, real numbers, no adjectives the numbers
-   do not support.
-4. If the next report falls inside the planned trade (an overnight hold, or a
-   report before the open), say it before `/trader-exit` sets the stop: a stop
-   does not protect against a gap, the stock can open past it.
+   `--months 24` 看兩年月營收，`--quarters 8` 看兩年季報，`--json` 輸出全部欄位，`--no-cache` 不用快取，
+   `--now "2026-11-02 21:00"` 指定台北時間（決定哪個月、哪一季應該已經公布）。
+2. 數字需要背景時，打開法說會簡報（中文 PDF 連結）讀管理層怎麼說：展望、毛利率指引、產能利用率。
+3. 寫摘要：一句講最新一季（營收、年增、EPS 和去年同季），一句講利潤率變化，一句講特別的地方（業外占比大、推算的
+   第 4 季、還沒公布），一句講最新月營收，最後附連結。用白話和實際數字，不加數字撐不起來的形容詞。
+4. 如果下一次月營收或財報會落在這筆交易期間（例如要留倉，或公布日就在明天開盤前），在 `/trader-exit` 設停損之前
+   先說：停損擋不住跳空，股價可能直接開在停損外面。
 
-## Example: the reel's stock
+## 範例：聯電 2303，2026-11-02
 
-`facts.py TSLA` (run 2026-10-20): quarter ending 2026-06-30 (Q2 2026),
-revenue $28.24B, +25.5% against a year earlier, net income $1.11B (-4.9%),
-diluted EPS $0.32 (-3.0%); gross margin 16.8% (-4.3 points on the quarter
-before), operating margin 1.4%; last four quarters $103.6B revenue and $1.08
-EPS. The tool flags that net income is above operating income, so gains
-outside the business are inside it. Latest 10-Q filed 2026-07-23. Monday's
-headlines said Tesla reports this week, so the summary ends: "The next report
-is days away. A day trade that closes before the bell is not exposed to it;
-anything held overnight is."
+`facts.py 2303`（2026-11-02 晚上，公開資訊觀測站的實際資料）：
 
-`facts.py AAPL` (2026-10-13): revenue $109.42B, +16.4% against a year
-earlier, diluted EPS $2.02 (+28.7%). For Coca-Cola the tool noted that SEC's
-facts stopped at 2026-04-03 while the 10-Q for 2026-07-03 was already filed,
-so the summary read that 10-Q directly.
+| 項目 | 數字 |
+| --- | --- |
+| 2026-09 月營收 | 25,350,431 仟元，月增 +1.22%，年增 +27.22%，今年累計年增 +16.08% |
+| 2026 Q3 營收 | 74,239,117 仟元，年增 +25.56%，比上一季 +8.01% |
+| 2026 Q3 利潤率 | 毛利率 33.95%（+1.47 個百分點），營業利益率 25.11%（+3.36），淨利率 22.14%（-39.34） |
+| 2026 Q3 EPS | 1.32 元，去年同季 1.20 元，+10.00%；歸屬母公司淨利 16,433,947 仟元，年增 +9.69% |
+| 2026 Q2 | EPS 3.39 元，淨利率 61.48%：業外收支占稅前淨利 66.9% |
+| 2025 Q4（推算） | 營收 61,809,545 仟元（全年 237,553,199 減前三季 175,743,654），EPS 0.80（3.34 減 2.54，近似值） |
+| 近四季 | 營收 265,819,226 仟元，歸屬母公司淨利 84,920,301 仟元，EPS 6.80 元 |
+| 法說會 | 2026-10-28 17:00，線上法說會，本公司2026年第三季財務暨營運報告，簡報 230320261028M001.pdf |
+| 接下來 | 10 月營收最晚 2026-11-10 公布；2026 Q4 與全年財報一般產業最晚 2027-03-31 |
 
-## What it never does
+這個例子最值得注意的是淨利率：第 3 季的 22.14% 比第 2 季少了 39.34 個百分點，但不是本業變差。營業利益率反而
+升到 25.11%。第 2 季的業外收支占稅前淨利 66.9%，那一季的 EPS 3.39 元大部分不是本業賺的。摘要要這樣寫：
+「第 3 季營收年增 25.56%、營業利益率 25.11% 是本業的改善；第 2 季的高 EPS 主要來自業外，不能拿來當基準。」
 
-- Never says a stock is cheap, expensive, a buy or a sell. It reports what
-  the company filed.
-- Never invents a number the filings do not have, or estimates a quarter it
-  cannot derive.
-- Never calls SEC without the User-Agent, and stays well under 10 requests a
-  second.
+同一次對台積電 2330 跑：第 3 季財報還沒上公開資訊觀測站（一般產業最晚 2026-11-14），工具就列到 2026 Q2，並在
+「接下來」寫出期限。
 
-## Safety
+## 不做的事
 
-Education and tooling, not financial advice. This skill only reads filings.
-Nothing places an order except `/trader-broker`, after `/trader-risk` passes
-and the user types an explicit yes for that order.
+- 不說一檔股票便宜、貴、該買或該賣，只整理公司申報了什麼。
+- 不編造報表沒有的數字，不推算拆不出來的季度。
+- 不抓法說會逐字稿；使用者貼上來的話可以讀，並說出管理層提到的變化。
+- 不連續狂打公開資訊觀測站：每次請求至少隔 2 秒，公布過的資料用快取。
+
+## 安全
+
+- 這是公開資訊的整理與教學工具，不構成投資建議。
+- 這個 skill 只讀資料，不會下單。這套 skill 裡只有 trader-broker 會產生委託單，而且要 trader-risk 今天通過那一張、
+  使用者在對話中明確回覆 yes、使用者自己在券商 App 送出，三件事都成立才會下單。
